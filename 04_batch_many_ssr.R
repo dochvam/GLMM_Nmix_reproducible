@@ -1,4 +1,15 @@
+# 00_process_raw_eBird.R
+# Author: Benjamin R. Goldstein
+# Date: ???
+
 ### Script 4: Run parallelized batches of model fits.
+# (1) Source helper files and read in data
+# (2) Set up lists of target SSRs
+# (3) Batch run models
+
+# NOTE that this script was developed to accomodate the case that some SSRs
+# are already fit, but some calls may error if none have been. However, if
+# you hit an error and keep running subsequent lines, the script should work.
 
 library(tidyverse)
 library(parallel)
@@ -7,7 +18,10 @@ library(parallel)
 source("03_fit_one_ssr_final.R")
 # This might error if no fits have been run yet, but it won't stop the script
 # from working
-source("read_results_helper_file.R") 
+tryCatch({
+  source("read_results_helper_file.R") 
+}, error = function(e){})
+
 
 ca_obs <- read_csv("intermediate/CA_obs_processed.csv")
 ca_checklists <- read_csv("intermediate/CA_checklists_w_covariates.csv")
@@ -18,10 +32,13 @@ targets <- read_csv("intermediate/chosen_ssrs.csv") %>%
 
 
 ##### 2. Set up lists of target SSRs #####
-targets <- #sample_n(targets, nrow(targets), replace = F) %>% 
-  targets %>%
-  arrange(-subregion) %>%
-  filter(!paste0(subregion, species) %in% paste0(ssrs_completed$sr, ssrs_completed$species))
+tryCatch(
+  {targets <- #sample_n(targets, nrow(targets), replace = F) %>% 
+   targets %>%
+    arrange(-subregion) %>%
+    filter(!paste0(subregion, species) %in% paste0(ssrs_completed$sr, ssrs_completed$species))},
+  error = function(e){}
+)
 
 targets_as_list <- list()
 for (i in 1:nrow(targets)) {
@@ -68,7 +85,7 @@ parLapply(cl = cl, X = targets_as_list_list, function(xx) {
                   overwrite = FALSE,#c("GLMM_Pois", "GLMM_Nbin",
                   #  "Nmix_BP", "Nmix_BNB",
                   # "Nmix_BBP", "Nmix_BBNB"),
-                  path_prefix = "output/onemodel_oneyear/"
+                  path_prefix = "output/onemodel_results/"
       )
     }, error = function(err) {as.character(err)}
     )

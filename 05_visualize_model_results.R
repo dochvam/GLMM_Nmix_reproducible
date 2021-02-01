@@ -1,4 +1,18 @@
-# Script 5: Visualize results of Script 4 (paper figures 1 and 2)
+# 05_visualize_model_results.R
+# Author: Benjamin R. Goldstein
+# Date: 2/1/2021
+
+# This script produces figures 1 and 2 as well as supplemental figures 1-4 for
+# the manuscript.
+
+# (1) Prep data by abundance group
+# (2) Plot chosen models by AIC (Fig 1)
+# (3) Species patterns (Fig S4)
+# (4) Subregion patterns (Fig S3)
+# (5) Delta AIC plot (Fig 2)
+# (6) AIC selection plots (Fig S2)
+# (7) Plot subregion buffers (Fig S1)
+
 
 library(tidyverse)
 library(ggalluvial)
@@ -8,77 +22,9 @@ library(gridExtra)
 
 source("read_results_helper_file.R")
 
-##### 1. Automate some summary statistics ######
-
-### Make some tables ###
-ssrs_completed %>% 
-  count(choice) %>% 
-  mutate(rate = n / nrow(ssrs_completed))
-
-# How often was the best model an N-mixture model?
-ssrs_completed %>% 
-  mutate(model_choice = substr(choice, 1, 4)) %>% 
-  count(model_choice)
-
-# How often was the best N-mixture model a BB N-mix model?
-nrow(ssrs_completed) - sum(ssrs_completed$best_Nmix_AIC == 
-    ssrs_completed$best_Nmix_noBB_AIC)
-
-nrow(ssrs_completed) - sum(ssrs_completed$best_GLMM_AIC == 
-            ssrs_completed$best_GLMM_noNB_AIC)
 
 
-all_onemodels_df_completed %>% 
-  filter(rank == 6, moddist == "Nmix_BP") %>% 
-  nrow()
-
-# How often was the choice decisive in favor of N-mixture models?
-ssrs_completed %>% 
-  mutate(magnitude = best_Nmix_AIC - best_GLMM_AIC) %>% 
-  summarize(rate = sum(magnitude < -dec))
-
-
-# How often was the choice decisive in favor of GLMMs?
-ssrs_completed %>% 
-  mutate(magnitude = best_Nmix_AIC - best_GLMM_AIC) %>% 
-  summarize(rate = sum(magnitude > dec))
-
-# How often was the choice decisive in favor of N-mixture BB models?
-ssrs_completed %>% 
-  mutate(magnitude = best_Nmix_AIC - best_GLMM_AIC) %>% 
-  filter(grepl("BB", choice)) %>% 
-  summarize(rate = sum(magnitude < -dec))
-
-
-# EXCLUDE BB:
-# How often was the best model an N-mixture model if you exclude beta-binomial?
-ssrs_completed %>% 
-  mutate(model_choice = substr(noBB_choice, 1, 4)) %>% 
-  count(model_choice)
-# How often was the choice decisive in favor of N-mixture models?
-ssrs_completed %>% 
-  mutate(magnitude = best_Nmix_noBB_AIC - best_GLMM_AIC) %>% 
-  summarize(rate = sum(magnitude < -dec))
-# How often was the choice decisive in favor of GLMMs?
-ssrs_completed %>% 
-  mutate(magnitude = best_Nmix_noBB_AIC - best_GLMM_AIC) %>% 
-  summarize(rate = sum(magnitude > dec))
-
-# EXCLUDE GLMM NB:
-# How often was the best model an N-mixture model if you exclude beta-binomial?
-ssrs_completed %>% 
-  mutate(model_choice = substr(noGNB_choice, 1, 4)) %>% 
-  count(model_choice)
-# How often was the choice decisive in favor of N-mixture models?
-ssrs_completed %>% 
-  mutate(magnitude = best_Nmix_noBB_AIC - best_GLMM_AIC) %>% 
-  summarize(rate = sum(magnitude < -dec))
-# How often was the choice decisive in favor of GLMMs?
-ssrs_completed %>% 
-  mutate(magnitude = best_Nmix_noBB_AIC - best_GLMM_AIC) %>% 
-  summarize(rate = sum(magnitude > dec))
-
-##### 2. Ranks plot ######
+#### 1. Prep data by abundance group ####
 aodf_w_abd <- all_onemodels_df_completed %>% 
   left_join(ssr_site_info, by = c("species" = "name_clean",
                                   "sr" = "center"))
@@ -94,8 +40,9 @@ less_ssrc <- ssrc_w_abd %>% filter(abund_type == "Less")
 wide_ssrc <- ssrc_w_abd %>% filter(abund_type == "Global")
 
 ssrc_w_abd <- ssrc_w_abd %>% select(-abund_type, -method) %>% distinct()
-#### Plot chosen models by AIC ####
-  
+
+#### 2. Plot chosen models by AIC ####
+
 
 wide_spec_ranks <- wide_om_df %>% 
   ggplot(aes(rank, fill = moddist)) + 
@@ -159,8 +106,93 @@ ggsave(filename = "output/plots/Fig1_AIC_ranks.jpg", plot = rank_laid_out,
        device = "jpeg", width = 8, height = 3.5, dpi = 900)
 
 
+##### 3. Species patterns #####
+spec_choice_plot <- wide_om_df %>% 
+  filter(chosen) %>% 
+  # count(species, moddist) %>% 
+  # mutate(n = n * (-1) ^ as.numeric(moddist == "Nmix_BBP")) %>% 
+  ggplot(aes(as.factor(species), sr, fill = moddist)) + 
+  geom_tile() +
+  ggtitle(paste0("Widespread species (n = ", nrow(wide_om_df)/6, ")")) +
+  scale_fill_manual(values = model_fill_colors) +
+  xlab("Species") +
+  ylab("Subregion") +
+  theme_minimal(base_size = 8) +
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()) +
+  coord_flip()
+ggsave("output/plots/FigS3_spec_choice.jpg", spec_choice_plot,
+       width = 6, height = 4)
 
-##### 3. Delta AIC plots #####
+
+##### 4. Subregion patterns #####
+
+wide_sr_rates <- wide_om_df %>% 
+  ungroup() %>% 
+  filter(chosen) %>%
+  count(sr, moddist) %>% 
+  # mutate(n = n * (-1) ^ as.numeric(moddist == "Nmix_BBP")) %>% 
+  ggplot(aes(as.factor(sr), n, fill = moddist)) + 
+  geom_col() +
+  ggtitle(paste0("Widespread species (n = ", nrow(wide_om_df)/6, ")")) +
+  scale_fill_manual(values = model_fill_colors) +
+  xlab("Subregion") +
+  ylab("Number of times models chosen") +
+  theme_minimal(base_size = 8) +
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()) +
+  coord_flip()
+
+more_sr_rates <- more_om_df %>%
+  ungroup() %>% 
+  filter(chosen) %>%
+  count(sr, moddist) %>% 
+  # mutate(n = n * (-1) ^ as.numeric(moddist == "Nmix_BBP")) %>% 
+  ggplot(aes(as.factor(sr), n, fill = moddist)) + 
+  geom_col() +
+  ggtitle(paste0("Highly reported species (n = ", nrow(more_om_df)/6, ")")) +
+  scale_fill_manual(values = model_fill_colors) +
+  xlab("") +
+  ylab("Number of times models chosen") +
+  theme_minimal(base_size = 8) +
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        legend.position = "none") +
+  coord_flip()
+
+less_sr_rates <- less_om_df %>%
+  ungroup() %>% 
+  filter(chosen) %>%
+  count(sr, moddist) %>% 
+  # mutate(n = n * (-1) ^ as.numeric(moddist == "Nmix_BBP")) %>% 
+  ggplot(aes(as.factor(sr), n, fill = moddist)) + 
+  geom_col() +
+  ggtitle(paste0("Less reported species (n = ", nrow(more_om_df)/6, ")")) +
+  scale_fill_manual(values = model_fill_colors) +
+  xlab("") + ylab("Number of times models chosen") +
+  theme_minimal(base_size = 8) +
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        legend.position = "none") +
+  coord_flip()
+
+sr_legend <- get_legend(wide_sr_rates)
+wide_sr_rates <- wide_sr_rates + theme(legend.position = "none")
+
+sr_laid_out <- grid.arrange(
+  arrangeGrob(
+    wide_sr_rates, more_sr_rates, less_sr_rates, sr_legend,
+    top = "Rate of model AIC rankings by subregion",
+    nrow = 1,
+    widths = c(1, 1, 1, 0.4)
+  )
+)
+ggsave(filename = "output/plots/FigS4_sr_choices.jpg", plot = sr_laid_out, 
+       device = "jpeg", width = 8, height = 3)
+
+
+
+##### 5. Delta AIC plots #####
 daic_dat_to_plot <- ssrc_w_abd %>%
   mutate(dummy = -100) %>%
   mutate(glmm_minus_nmix = best_GLMM_AIC - best_Nmix_AIC) %>%
@@ -284,7 +316,90 @@ arrangeGrob(grobs = list(daic_colors, daic_dots, daic_legend),
 
 
 
-##### 4. Plot subregion buffers #####
+
+
+
+#### 6. AIC selection plots ####
+
+plot_AIC_comp_from_str <- function(ssr_str) {
+  test_files <- list.files("output/onemodel_oneyear", pattern = ssr_str, 
+                           full.names = TRUE)
+  test_results <- lapply(test_files, function(x){
+    res <- readRDS(x)
+    # res$species <- "House_Finch"
+    # res$subregion <- 20
+    res
+  })
+  
+  models_tried <- lapply(test_results, function(x) {
+    
+    nterms <- ncol(x$models_tried) - 1
+    addtl <- nrow(x$coefficients) - sum(x$best_row[nterms])
+    
+    mt <- x$models_tried %>% 
+      filter(!is.infinite(AIC))
+    
+    mt$code <- unlist(apply(mt, 1, function(mtrow) {
+      paste0(mtrow[1:nterms], collapse = "")}))
+    
+    mt$complexity <- apply(mt, 1, function(thisrow) {
+      thisrow <- as.numeric(thisrow[1:nterms])
+      sum(thisrow) + addtl
+    })
+    mt
+  })
+  
+  all_models_tried <- bind_rows(  
+    models_tried[[1]] %>% mutate(model = "GLMM_Nbin"),
+    models_tried[[2]] %>% mutate(model = "GLMM_Pois"),
+    models_tried[[3]] %>% mutate(model = "Nmix_BBNB"),
+    models_tried[[4]] %>% mutate(model = "Nmix_BBP"),
+    models_tried[[5]] %>% mutate(model = "Nmix_BNB"),
+    models_tried[[6]] %>% mutate(model = "Nmix_BP")
+  )
+  
+  # models_tried$plot_order <- 
+  #   paste0(str_pad(models_tried$complexity, width = 3, pad = "0"), models_tried$code)
+  
+  ggplot(all_models_tried) +
+    # geom_line(aes(complexity, AIC, group = code)) +
+    geom_point(aes(complexity, AIC, color = model), position = "jitter") +
+    scale_color_manual(values= model_line_colors) +
+    theme_minimal() +
+    xlab("Number of parameters") +
+    ggtitle(paste(gsub("_", " ", test_results[[1]]$species), 
+                  "SR", test_results[[1]]$subregion))
+}
+
+AIC_plots <- list()
+for (i in 1:nrow(ssrs_completed)) {
+  AIC_plots[[i]] <- plot_AIC_comp_from_str(paste0("_", ssrs_completed$sr[i], "_",
+                                                  ssrs_completed$species[i]))
+}
+
+### Create a set of random AIC plots
+set.seed("8142")
+random_indices <- sample(1:nrow(ssrs_completed), size = 6, replace = F)
+random_ssrs <- paste0("_", ssrs_completed$sr, "_", ssrs_completed$species)[
+  random_indices
+]
+AIC_plot_legend <- get_legend(AIC_plots[[1]] + theme(legend.position = "bottom"))
+for (i in random_indices) {
+  AIC_plots[[i]] <- AIC_plots[[i]] + theme(legend.position = "none")
+}
+
+arrangeGrob(grobs = list(
+  AIC_plots[[random_indices[1]]], AIC_plots[[random_indices[2]]],
+  AIC_plots[[random_indices[3]]], AIC_plots[[random_indices[4]]],
+  AIC_plots[[random_indices[5]]], AIC_plots[[random_indices[6]]]),
+  bottom = AIC_plot_legend, nrow = 2
+) %>% 
+  ggsave(filename = "FigS2_fAIC.jpg", width = 9, height = 6)
+
+
+
+
+##### 7. Plot subregion buffers #####
 library(rgdal)
 
 radius <- 5000

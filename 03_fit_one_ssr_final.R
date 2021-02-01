@@ -1,4 +1,13 @@
+# 03_fit_one_ssr_final.R
+# Author: Benjamin R. Goldstein
+# Date: 2/1/2021
+
 ### Script 3: Main and helper functions for model fitting.
+# This file contains a many functions used in the iterative fitting of
+# the models. The main function called by Script 4 is fit_one_ssr(), at
+# the bottom of the script, which executes forward AIC on all 6 model
+# types for a specified species-subregion dataset.
+
 
 library(furrr)
 library(glmmTMB)
