@@ -8,7 +8,7 @@
 library(tidyverse)
 
 logit <- function(x) log(x / (1-x))
-dec <- 4
+dec <- 4 # decisiveness threshold
 
 results_folder <- onemodel_path <- "output/onemodel_results"
 num__s <- str_count(results_folder, "_")

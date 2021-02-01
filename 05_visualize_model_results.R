@@ -322,7 +322,7 @@ arrangeGrob(grobs = list(daic_colors, daic_dots, daic_legend),
 #### 6. AIC selection plots ####
 
 plot_AIC_comp_from_str <- function(ssr_str) {
-  test_files <- list.files("output/onemodel_oneyear", pattern = ssr_str, 
+  test_files <- list.files("output/onemodel_results", pattern = ssr_str, 
                            full.names = TRUE)
   test_results <- lapply(test_files, function(x){
     res <- readRDS(x)
