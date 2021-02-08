@@ -1,4 +1,4 @@
-# Reproducing results for ""
+# Reproducing results for "Comparing N-mixture models and GLMMs for relative abundance estimation in eBird"
 Reproducible code for paper comparing GLMM and N-mixture outcomes from the eBird dataset.
 
 ### How to use this repository
