@@ -1,10 +1,3 @@
-# 08_visualize_post_tests
-# Author: Benjamin R. Goldstein
-# Date: 2/1/2021
-
-# This file produces figures 3 and S5-S7
-
-
 ##### 1. Setup #####
 library(tidyverse)
 source("06_post_tests.R")
@@ -12,7 +5,7 @@ source("read_results_helper_file.R")
 library(grid)
 library(gridExtra)
 
-posttest_path <- "output/posttests"
+posttest_path <- "output/posttests/"
 color_facet_strips <- function(p) {
   g <- ggplotGrob(p)
   strips <- which(grepl('strip', g$layout$name))
@@ -29,6 +22,106 @@ color_facet_strips <- function(p) {
   g
 }
 
+
+# Collect files by looping over ssr info (saves string extraction of info)
+stability_basic_list <- list()
+stability_list <- list()
+ct <- 0
+for (i in 1:nrow(ssrs_completed)) {
+  ssr_str <- paste0("_", ssrs_completed$sr[i], "_", ssrs_completed$species[i])
+  thisfile <- paste0(posttest_path, "/stability", ssr_str, ".csv")
+  if (file.exists(thisfile)) {
+    ct <- ct + 1
+    this_result <- read_csv(thisfile)
+    this_result$ssr_str <- ssr_str
+    this_result$species <- ssrs_completed$species[i]
+    this_result$sr <- ssrs_completed$sr[i]
+    this_result$choice <- ssrs_completed$choice[i]
+    
+    
+    
+    dlist <- list()
+    basic_summary_df <- data.frame(
+      species = ssrs_completed$species[i],
+      sr = ssrs_completed$sr[i],
+      choice = ssrs_completed$choice[i],
+      moddist = names(model_fill_colors)[1:4],
+      dlpl_topK = NA,
+      dlpol_topK = NA,
+      dAIC_topK = NA
+    )
+    
+    
+    for (j in 1:4) {
+      tempdf <- this_result %>% 
+        filter(moddist == names(model_fill_colors[j]))
+      
+      this_ddf <- tempdf
+      this_ddf$est <- this_ddf$est - this_ddf$est[this_ddf$K == min(this_ddf$K)]
+      
+      dlist[[j]] <- this_ddf
+      
+      basic_summary_df$dlpl_topK[j] <- 
+        this_ddf$est[this_ddf$param == "log(p * lambda)" &
+                       this_ddf$K == max(this_ddf$K)] - 
+        this_ddf$est[this_ddf$param == "log(p * lambda)" &
+                       this_ddf$K == max(this_ddf$K[this_ddf$K != max(this_ddf$K)])]
+      basic_summary_df$dlpol_topK[j] <- 
+        this_ddf$est[this_ddf$param == "log(p / lambda)" &
+                       this_ddf$K == max(this_ddf$K)] - 
+        this_ddf$est[this_ddf$param == "log(p / lambda)" &
+                       this_ddf$K == max(this_ddf$K[this_ddf$K != max(this_ddf$K)])]
+      basic_summary_df$dAIC_topK[j] <- 
+        this_ddf$est[this_ddf$param == "AIC" &
+                       this_ddf$K == max(this_ddf$K)] - 
+        this_ddf$est[this_ddf$param == "AIC" &
+                       this_ddf$K == max(this_ddf$K[this_ddf$K != max(this_ddf$K)])]
+      
+    }
+    ddf <- do.call(rbind, dlist)
+    
+    stability_list[[ct]] <- ddf
+    stability_basic_list[[ct]] <- basic_summary_df
+  }
+}
+stability_df <- do.call(rbind, stability_list)
+
+stability_summary_df <- do.call(rbind, stability_basic_list) %>% 
+  left_join(all_onemodels_df[, c("species", "sr", "moddist", "num_nan")])
+
+
+##### Stability stats #####
+stability_summary_df <- stability_summary_df %>% 
+  mutate(`Stable in AIC` = abs(dAIC_topK) < 0.1) %>% 
+  mutate(stable_lpl = abs(dlpl_topK) < 0.1) %>% 
+  mutate(stable_lpol = abs(dlpol_topK) < 0.1)
+
+# Rates of stability in AIC
+stability_summary_df %>% 
+  group_by(moddist, `Stable in AIC`) %>% 
+  filter(!`Stable in AIC`) %>% 
+  count() %>% 
+  mutate(rate = n / nrow(ssrs_completed))
+
+# Rates of stability in log(p*lambda)
+stability_summary_df %>% 
+  group_by(moddist, stable_lpl) %>% 
+  filter(!stable_lpl) %>% 
+  count() %>% 
+  mutate(rate = n / nrow(ssrs_completed))
+
+# Rates of stability in log(p/lambda)
+stability_summary_df %>% 
+  group_by(moddist, stable_lpol) %>% 
+  filter(!stable_lpol) %>% 
+  count() %>% 
+  mutate(rate = n / nrow(ssrs_completed))
+
+
+
+stability_summary_df %>% 
+  group_by(`Stable in AIC`, stable_lpl, stable_lpol) %>% 
+  count()
 
 
 ##### 2. Plot GOF #####
@@ -80,14 +173,14 @@ gof_plot_A <- gof_df %>%
   scale_x_continuous(breaks = c(0.05, 0.5, 0.9)) + ylab("") +
   # ggtitle("A. All models") +
   theme(#axis.text.x = element_blank(), 
-        axis.ticks.x = element_blank(),
-        panel.grid = element_line(color = "#ededed"),
-        panel.grid.major.y = element_blank(),
-        panel.grid.minor.y = element_blank(),
-        panel.background = element_rect(fill = "white"),
-        panel.border = element_rect(
-          size = 0.5, colour = "gray", fill = NA,
-        )
+    axis.ticks.x = element_blank(),
+    panel.grid = element_line(color = "#ededed"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    panel.background = element_rect(fill = "white"),
+    panel.border = element_rect(
+      size = 0.5, colour = "gray", fill = NA,
+    )
   ) +
   facet_wrap(~fit_model, nrow = 2)
 
@@ -95,7 +188,7 @@ gof_plot_A <- gof_df %>%
 # gof_legend <- get_legend(gof_plot_A)
 # gof_plot_A <- gof_plot_A + theme(legend.position = "none")
 gof_plot_A <- color_facet_strips(gof_plot_A)
-ggsave("output/plots/Fig3_GOF.jpg", gof_plot_A, device = "jpg",
+ggsave("output/plots/FigS6_GOF.jpg", gof_plot_A, device = "jpg",
        width = 8, height = 4)
 
 # extract ssrs where BB-NB failed but was chosen
@@ -285,7 +378,9 @@ for (j in 1:4) {
     ylab("point estimate") +
     ggtitle(paste0(c("A. ", "B. ", "C. ", "D. ")[j], parname))
   
-  ggsave(filename = paste0("output/plots/FigS6_est_", parname, ".jpg"), 
+  ggsave(filename = paste0("output/plots/Figs7",
+                           c("A", "B", "C", "D")[j],
+                           "_est_", parname, ".jpg"), 
          plot = est_plots[[j]], width = 5, height = 5)
   
   se_plots[[j]] <- ggplot(combdat_df, aes(se1, se2)) + 
@@ -302,9 +397,10 @@ for (j in 1:4) {
     ylab("standard error") +
     ggtitle(paste0(c("A. ", "B. ", "C. ", "D. ")[j], parname))
   
-  ggsave(filename = paste0("output/plots/FigS7_se_", parname, ".jpg"), 
+  ggsave(filename = paste0("output/plots/FigS8",
+                           c("A", "B", "C", "D")[j],
+                           "_se_", parname, ".jpg"), 
          plot = se_plots[[j]], width = 5, height = 5)
-  
   
   model_combos_list[[j]] <- bind_rows(model_combos_est, model_combos_se) %>% 
     mutate(param = parname)

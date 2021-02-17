@@ -26,7 +26,7 @@ BP_nmix_code_ebd <- nimbleCode({
     
     # Data are distributed according to the custom distribution
     y[index_start[s]:index_end[s]] ~ 
-      dNmixture_BP_v(lambda = lambda[s],
+      dNmixture_v(lambda = lambda[s],
                      prob = p[index_start[s]:index_end[s]],
                      Nmin = 0,
                      Nmax = K,
