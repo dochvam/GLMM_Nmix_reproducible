@@ -9,10 +9,11 @@ covariates and running the analysis in the associated paper.
 If you encounter any problems or have any questions, feel free to contact the corresponding 
 author Ben Goldstein.
 
-Due to copyright, this repository does **not** include the eBird dataset, nor
-the LANDFIRE landscape covariate dataset. To use these scripts, these files
-must be downloaded and added to the `data/` directory. Instructions for filepathing can
-be found in the files where these inputs are read.
+Due to copyright, this repository does **not** include the eBird dataset, the EltonTraits dataset, nor the LANDFIRE landscape covariate dataset. To use these scripts, these files must be downloaded and added to the `data/` directory. Instructions for filepathing can be found in the files where these inputs are read. They can be retrieved from the following public repositories:
+
+* eBird basic dataset: https://ebird.org/data/download
+* EltonTraits: https://esapubs.org/archive/ecol/E095/178/
+* LANDFIRE: https://www.landfire.gov/evt.php
 
 Once that's been done, numbered files can be run in sequence. The following scripts are included:
 

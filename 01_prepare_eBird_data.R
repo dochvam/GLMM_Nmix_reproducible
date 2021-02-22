@@ -154,6 +154,9 @@ CA_checklists_buffered <- CA_checklists_good %>%
 ##### 3. Choose species #####
 
 # Read in the Elton Traits database to filter out pelagic birds
+# You must retrieve the data file for EltonTraits and save it in data/.
+# This file can be found at https://esapubs.org/archive/ecol/E095/178/
+
 if (!file.exists("data/BirdFuncDat_wITIS.csv")) {
   EltonTraits <- read_tsv("data/BirdFuncDat.txt")
   EltonTraits$species_code <- 
