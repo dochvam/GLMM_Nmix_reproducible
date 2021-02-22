@@ -24,9 +24,9 @@ good_CRS <- CRS("+proj=aea +lat_1=34 +lat_2=40.5 +lat_0=0 +lon_0=-120
 
 # Raw eBird data
 CA_checklists_raw <-
-  read_csv("../eBird_Data/subsets-2020/state_rdbs/CA_Aug2020_checklist_info.csv")
+  read_csv("data/CA_Aug2020_checklist_info.csv")
 CA_obs_raw <- 
-  read_csv("../eBird_Data/subsets-2020/state_rdbs/CA_Aug2020_species_counts.csv")
+  read_csv("data/CA_Aug2020_species_counts.csv")
 CA_map <- maps::map(database = "state", regions = "CA", fill = T, plot = F)
 CA_poly <- maptools::map2SpatialPolygons(
   CA_map, IDs = "california", proj4string = CRS("+proj=longlat +datum=WGS84")
