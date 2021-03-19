@@ -79,8 +79,8 @@ state_checklists <- state_data_df %>%
 duplicates <- state_checklists %>% 
   count(SAMPLING.EVENT.IDENTIFIER) %>% 
   filter(n > 1)
-# It looks like duplicates occur when information about effort area isn't attributed to all obs.
-# This seems wrong, so the solution is to delete the row with NA effort area
+# Duplicates occur when information about effort area isn't attributed to all obs.
+# The solution is to delete the row with NA effort area
 state_checklists <- state_checklists %>% 
   filter(!(SAMPLING.EVENT.IDENTIFIER %in% 
              duplicates$SAMPLING.EVENT.IDENTIFIER) |

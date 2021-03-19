@@ -9,6 +9,13 @@
 # types for a specified species-subregion dataset.
 
 
+if (packageVersion("nimbleEcology") < "0.4.0") {
+  warning(paste0("In script 03: The version of nimbleEcology you're using doesn't have the N-mixture",
+                 " extensions we need. Installing development version from GitHub."))
+  devtools::install_github(repo = "nimble-dev/nimbleEcology", ref = "dNmixture_exts")
+}
+
+
 library(furrr)
 library(glmmTMB)
 library(lme4)
@@ -18,7 +25,6 @@ library(unmarked)
 library(parallel)
 library(numDeriv)
 
-source("dNmixture_dists.R")
 source("model_code.R")
 
 

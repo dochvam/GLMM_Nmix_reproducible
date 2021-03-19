@@ -1,4 +1,5 @@
-// THIS CODE REPURPOSED FROM KNAPE ET AL. 2018 (DOI: 10.1111/2041-210X.13062)
+// This code originally published by Knape et al. 2018 (DOI: 10.1111/2041-210X.13062)
+// Republished with permission from the authors
 
 #include <Rcpp.h>
 using namespace Rcpp;

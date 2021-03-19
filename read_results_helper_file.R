@@ -3,7 +3,10 @@
 # Date: 2/1/2021
 
 # Sourcing this file reads in summary information for all completed
-# models. It's needed by scripts 4-8.
+# models. It's needed by scripts 4-8. The main idea is to loop over all the
+# results files and extract useful info from them, which are aggregated into
+# data frames based on info type ("ssrs_completed" stores info about SSRs while
+# all_onemodels stores info about each model within each SSR)
 
 library(tidyverse)
 

@@ -3,7 +3,7 @@
 # Date: 2/1/2021
 
 ### Script 1: prepare eBird data for modeling.
-# (0) Load inputs
+# (0) Load inputs 
 # (1) Data are cleaned/filtered
 # (2) Regions are chosen
 # (3) Species are chosen
