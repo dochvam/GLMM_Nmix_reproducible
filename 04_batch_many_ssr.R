@@ -1,6 +1,5 @@
 # 00_process_raw_eBird.R
 # Author: Benjamin R. Goldstein
-# Date: ???
 
 ### Script 4: Run parallelized batches of model fits.
 # (1) Source helper files and read in data

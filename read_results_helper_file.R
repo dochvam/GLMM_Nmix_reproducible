@@ -1,6 +1,5 @@
 # read_results_helper_file.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
 
 # Sourcing this file reads in summary information for all completed
 # models. It's needed by scripts 4-8. The main idea is to loop over all the

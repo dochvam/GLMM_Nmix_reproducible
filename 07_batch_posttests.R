@@ -1,7 +1,7 @@
 # 07_batch_posttests.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
 
+### Script 7: batch posttests
 # This script calls goodness-of-fit checks for all ssrs whose models
 # have already been fit
 

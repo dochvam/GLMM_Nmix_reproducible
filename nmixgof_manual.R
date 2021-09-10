@@ -1,5 +1,5 @@
 # This code is modified from Knape et al. 2018 (DOI: 10.1111/2041-210X.13062)
-# Published with permission from the authors
+# and is published with permission from the authors
 
 library(Rcpp)
 #u <- runif(F(z-1), F(z))

@@ -1,6 +1,5 @@
 # 01_prepare_eBird_data.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
 
 ### Script 1: prepare eBird data for modeling.
 # (0) Load inputs 

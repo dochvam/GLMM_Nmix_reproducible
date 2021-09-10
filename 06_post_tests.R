@@ -1,8 +1,7 @@
 # 06_post_tests.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
 
-### Script 3: Main and helper functions for model fitting.
+### Script 6: Main and helper functions for posttests
 # This file contains functions to batch-run post tests on the model,
 # including goodness-of-fit checking, checking residuals for autocorrelation,
 # stability checks, etc.

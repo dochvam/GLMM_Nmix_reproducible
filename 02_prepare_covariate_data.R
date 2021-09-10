@@ -1,6 +1,5 @@
 # 02_prepare_covariate_data.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
 
 ### Script 2: Associate eBird checklists with spatial covariate data
 # (0) Load inputs

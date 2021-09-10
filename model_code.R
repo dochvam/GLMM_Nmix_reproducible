@@ -1,6 +1,5 @@
 # model_code.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
 
 # This script contains NIMBLE code specifying four N-mixture models,
 # representing the four considered (B-P, B-NB, BB-P, BB-NB). 

@@ -1,7 +1,7 @@
 # 05_visualize_model_results.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
 
+### Script 5: visualizing results
 # This script produces figures 1, 2, and 6 as well as supplemental figures 1-2
 # for the manuscript.
 # It also produces some tabular summaries reported in Results.

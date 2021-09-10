@@ -1,6 +1,5 @@
 # 08_visualize_post_tests.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
 
 ### Script 8: Visualize posttests
 # This sccript contains code for generating figures 3-5 and supplemental figure

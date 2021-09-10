@@ -1,6 +1,5 @@
 # 03_fit_one_ssr_final.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
 
 ### Script 3: Main and helper functions for model fitting.
 # This file contains a many functions used in the iterative fitting of
