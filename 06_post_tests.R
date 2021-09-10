@@ -1,3 +1,13 @@
+# 06_post_tests.R
+# Author: Benjamin R. Goldstein
+# Date: 2/1/2021
+
+### Script 3: Main and helper functions for model fitting.
+# This file contains functions to batch-run post tests on the model,
+# including goodness-of-fit checking, checking residuals for autocorrelation,
+# stability checks, etc.
+
+
 library(DHARMa)
 library(unmarked)
 library(nmixgof)
@@ -7,11 +17,6 @@ library(ape)
 source("03_fit_one_ssr_final.R")
 source("nmixgof_manual.R")
 
-# Post hoc model stuff
-# For each ssr:
-# - Do goodness-of-fit checks on all four models
-# - Refit best N-mixture model with year in detection
-# - Check stability of the N-mixture model
 
 #### Helper functions ####
 refit_as_nimble <- function(nmix_res_list, K = NULL, dat = NULL) {
@@ -29,8 +34,8 @@ refit_as_nimble <- function(nmix_res_list, K = NULL, dat = NULL) {
   }
   
   accept_det_names <- clean_vec_names(c("duration", "num_observers"), dat_df)
-  accept_abd_names <- clean_vec_names(c("elevation", "precip", "tmax"), dat_df)
-
+  accept_abd_names <- c("elevation")#clean_vec_names(c("elevation", "precip", "tmax"), dat_df)
+  
   modellist <- make_nmix_model(dat_df, names(best_row)[-length(best_row)], 
                                mixture, K[1])
   nmix_model <- modellist$nmix_model
@@ -73,7 +78,7 @@ refit_as_unmarked <- function(nmix_res) {
   umMix <- substr(mixture, 3, nchar(mixture))
   
   accept_det_names <- clean_vec_names(c("duration", "num_observers"), dat_df)
-  accept_abd_names <- clean_vec_names(c("elevation", "precip", "tmax"), dat_df)
+  accept_abd_names <- c("elevation") #clean_vec_names(c("elevation", "precip", "tmax"), dat_df)
   
   f <- unmarked_formula_from_row(nmix_res$best_row, 
                                  accept_det_names = accept_det_names,
@@ -87,13 +92,13 @@ refit_as_unmarked <- function(nmix_res) {
       tod = get_var_wide(dat_df, "tod"), 
       tod_sq = get_var_wide(dat_df, "tod_sq"), 
       yday = get_var_wide(dat_df, "yday"), 
-      yday_sq = get_var_wide(dat_df, "yday_sq"), 
-      distance = get_var_wide(dat_df, "distance") 
+      yday_sq = get_var_wide(dat_df, "yday_sq") 
+      # distance = get_var_wide(dat_df, "distance") 
     ),
     siteCovs = data.frame(
       elevation = get_var_wide(dat_df, "elevation")[,1],
-      precip = get_var_wide(dat_df, "precip")[,1], 
-      tmax = get_var_wide(dat_df, "tmax")[,1], 
+      # precip = get_var_wide(dat_df, "precip")[,1], 
+      # tmax = get_var_wide(dat_df, "tmax")[,1], 
       pct_water = get_var_wide(dat_df, "pct_water")[,1], 
       pct_ag = get_var_wide(dat_df, "pct_ag")[,1], 
       pct_tree = get_var_wide(dat_df, "pct_tree")[,1], 
@@ -125,16 +130,16 @@ rqresid_from_nmixfit <- function(nmix_res, type = "Site-Sum") {
   coeffs <- nmix_res$coefficients
   
   accept_det_names <- clean_vec_names(c("duration", "num_observers"), dat_df)
-  accept_abd_names <- clean_vec_names(c("elevation", "precip", "tmax"), dat_df)
+  accept_abd_names <- c("elevation") #clean_vec_names(c("elevation", "precip", "tmax"), dat_df)
   
   det_pars <- coeffs %>% 
-            filter(param %in% accept_det_names |
-                   grepl("det", param)) %>% 
-            mutate(param = gsub("-det", "", param))
+    filter(param %in% accept_det_names |
+             grepl("det", param)) %>% 
+    mutate(param = gsub("-det", "", param))
   abd_pars <- coeffs %>% 
-            filter(param %in% accept_abd_names |
-                     grepl("abd", param)) %>% 
-            mutate(param = gsub("-abd", "", param))
+    filter(param %in% accept_abd_names |
+             grepl("abd", param)) %>% 
+    mutate(param = gsub("-abd", "", param))
   
   det_pars$param[det_pars$param == "tod*tod"] <- "tod_sq"
   det_pars$param[det_pars$param == "yday*yday"] <- "yday_sq"
@@ -151,7 +156,7 @@ rqresid_from_nmixfit <- function(nmix_res, type = "Site-Sum") {
   
   logit_p_intercept <- logit(
     exp((coeffs$est[coeffs$param == "log(p * lambda)"] +
-         coeffs$est[coeffs$param == "log(p / lambda)"]) / 2)
+           coeffs$est[coeffs$param == "log(p / lambda)"]) / 2)
   )
   log_lam_intercept <- log(
     exp((coeffs$est[coeffs$param == "log(p * lambda)"] -
@@ -159,9 +164,9 @@ rqresid_from_nmixfit <- function(nmix_res, type = "Site-Sum") {
   )
   
   dat_df$p <- det_mm %*% 
-       c(logit_p_intercept,
-         det_pars$est) %>% 
-       expit()
+    c(logit_p_intercept,
+      det_pars$est) %>% 
+    expit()
   dat_df$p <- unlist(lapply(dat_df$p, function(x) min(x, 1 - 1e-5)))
   
   dat_df$lambda <- abd_mm %*% 
@@ -195,14 +200,14 @@ rqresid_from_nmixfit <- function(nmix_res, type = "Site-Sum") {
   } else if (type == "Observation") {
     return(
       rqResObs(y = y_mtx, lam = lambda_mtx[,1], p = p_mtx, 
-             mixture = nmix_res$mixture, K = nmix_res$K,
-             theta = theta, s = s)
+               mixture = nmix_res$mixture, K = nmix_res$K,
+               theta = theta, s = s)
     )
   } else if (type == "Marginal") {
     return(
       rqResMarginal(y = y_mtx, lam_mtx = lambda_mtx, p = p_mtx, 
-                  mixture = nmix_res$mixture, K = nmix_res$K,
-                  theta = theta, s = s)
+                    mixture = nmix_res$mixture, K = nmix_res$K,
+                    theta = theta, s = s)
     )
   }
 }
@@ -212,107 +217,107 @@ modifiedSimResiduals <-
   function (fittedModel, n = 250, refit = F, integerResponse = NULL, 
             plot = F, seed = 123, method = c("PIT", "traditional"), 
             ...) {
-  if (n < 2) 
-    stop("error in DHARMa::simulateResiduals: n > 1 is required to calculate scaled residuals")
-  DHARMa:::checkModel(fittedModel)
-  match.arg(method)
-  randomState <- getRandomState(seed)
-  on.exit({
-    randomState$restoreCurrent()
-  })
-  ptm <- proc.time()
-  out = list()
-  family = family(fittedModel)
-  out$fittedModel = fittedModel
-  out$modelClass = class(fittedModel)[1]
-  out$nObs = nobs(fittedModel)
-  out$nSim = n
-  out$refit = refit
-  out$observedResponse = getObservedResponse(fittedModel)
-  if (is.null(integerResponse)) {
-    if (family$family %in% c("binomial", "poisson", "quasibinomial", 
-                             "quasipoisson", "Negative Binom", "nbinom2", "nbinom1", 
-                             "genpois", "compois", "truncated_poisson", "truncated_nbinom2", 
-                             "truncated_nbinom1", "betabinomial", "Poisson", 
-                             "Tpoisson", "COMPoisson", "negbin", "Tnegbin") | 
-        grepl("Negative Binomial", family$family)) 
-      integerResponse = TRUE
-    else integerResponse = FALSE
-  }
-  out$integerResponse = integerResponse
-  out$problems = list()
-  if (out$modelClass %in% c("HLfit")) {
-    out$fittedPredictedResponse = predict(fittedModel, type = "response", 
-                                          re.form = ~0)[, 1L]
-  }
-  else {
-    out$fittedPredictedResponse = predict(fittedModel, type = "response", 
-                                          re.form = ~0)
-  }
-  out$fittedFixedEffects = getFixedEffects(fittedModel)
-  out$fittedResiduals = residuals(fittedModel, type = "response")
-  if (refit == FALSE) {
-    out$simulatedResponse = getSimulations(fittedModel, 
-                                           nsim = n, type = "normal", ...)
-    out$simulatedResponse[is.nan(out$simulatedResponse)] <- 0
-    DHARMa:::checkSimulations(out$simulatedResponse, out$nObs, out$nSim)
-    out$scaledResiduals = getQuantile(simulations = out$simulatedResponse, 
-                                      observed = out$observedResponse, integerResponse = integerResponse, 
-                                      method = method)
-  }
-  else {
-    out$refittedPredictedResponse <- matrix(nrow = out$nObs, 
+    if (n < 2) 
+      stop("error in DHARMa::simulateResiduals: n > 1 is required to calculate scaled residuals")
+    DHARMa:::checkModel(fittedModel)
+    match.arg(method)
+    randomState <- getRandomState(seed)
+    on.exit({
+      randomState$restoreCurrent()
+    })
+    ptm <- proc.time()
+    out = list()
+    family = family(fittedModel)
+    out$fittedModel = fittedModel
+    out$modelClass = class(fittedModel)[1]
+    out$nObs = nobs(fittedModel)
+    out$nSim = n
+    out$refit = refit
+    out$observedResponse = getObservedResponse(fittedModel)
+    if (is.null(integerResponse)) {
+      if (family$family %in% c("binomial", "poisson", "quasibinomial", 
+                               "quasipoisson", "Negative Binom", "nbinom2", "nbinom1", 
+                               "genpois", "compois", "truncated_poisson", "truncated_nbinom2", 
+                               "truncated_nbinom1", "betabinomial", "Poisson", 
+                               "Tpoisson", "COMPoisson", "negbin", "Tnegbin") | 
+          grepl("Negative Binomial", family$family)) 
+        integerResponse = TRUE
+      else integerResponse = FALSE
+    }
+    out$integerResponse = integerResponse
+    out$problems = list()
+    if (out$modelClass %in% c("HLfit")) {
+      out$fittedPredictedResponse = predict(fittedModel, type = "response", 
+                                            re.form = ~0)[, 1L]
+    }
+    else {
+      out$fittedPredictedResponse = predict(fittedModel, type = "response", 
+                                            re.form = ~0)
+    }
+    out$fittedFixedEffects = getFixedEffects(fittedModel)
+    out$fittedResiduals = residuals(fittedModel, type = "response")
+    if (refit == FALSE) {
+      out$simulatedResponse = getSimulations(fittedModel, 
+                                             nsim = n, type = "normal", ...)
+      out$simulatedResponse[is.nan(out$simulatedResponse)] <- 0
+      DHARMa:::checkSimulations(out$simulatedResponse, out$nObs, out$nSim)
+      out$scaledResiduals = getQuantile(simulations = out$simulatedResponse, 
+                                        observed = out$observedResponse, integerResponse = integerResponse, 
+                                        method = method)
+    }
+    else {
+      out$refittedPredictedResponse <- matrix(nrow = out$nObs, 
+                                              ncol = n)
+      out$refittedFixedEffects <- matrix(nrow = length(out$fittedFixedEffects), 
+                                         ncol = n)
+      out$refittedResiduals = matrix(nrow = out$nObs, ncol = n)
+      out$refittedPearsonResiduals = matrix(nrow = out$nObs, 
                                             ncol = n)
-    out$refittedFixedEffects <- matrix(nrow = length(out$fittedFixedEffects), 
-                                       ncol = n)
-    out$refittedResiduals = matrix(nrow = out$nObs, ncol = n)
-    out$refittedPearsonResiduals = matrix(nrow = out$nObs, 
-                                          ncol = n)
-    out$simulatedResponse = getSimulations(fittedModel, 
-                                           nsim = n, type = "refit", ...)
-    for (i in 1:n) {
-      simObserved = out$simulatedResponse[[i]]
-      try({
-        refittedModel = getRefit(fittedModel, simObserved)
-        out$refittedPredictedResponse[, i] = predict(refittedModel, 
-                                                     type = "response")
-        out$refittedFixedEffects[, i] = getFixedEffects(refittedModel)
-        out$refittedResiduals[, i] = residuals(refittedModel, 
-                                               type = "response")
-        out$refittedPearsonResiduals[, i] = residuals(refittedModel, 
-                                                      type = "pearson")
-      }, silent = TRUE)
-    }
-    if (anyNA(out$refittedResiduals)) 
-      warning("DHARMa::simulateResiduals warning: on refit = TRUE, at least one of the refitted models produced an error. Inspect the refitted model values. Results may not be reliable.")
-    dup = sum(duplicated(out$refittedFixedEffects, MARGIN = 2))
-    if (dup > 0) {
-      if (dup < n/3) {
-        warning(paste("There were", dup, "of", n, "duplicate parameter estimates in the refitted models. This may hint towards a problem with optimizer convergence in the fitted models. Results may not be reliable. The suggested action is to not use the refitting procedure, and diagnose with tools available for the normal (not refitted) simulated residuals. If you absolutely require the refitting procedure, try changing tolerance / iterations in the optimizer settings."))
+      out$simulatedResponse = getSimulations(fittedModel, 
+                                             nsim = n, type = "refit", ...)
+      for (i in 1:n) {
+        simObserved = out$simulatedResponse[[i]]
+        try({
+          refittedModel = getRefit(fittedModel, simObserved)
+          out$refittedPredictedResponse[, i] = predict(refittedModel, 
+                                                       type = "response")
+          out$refittedFixedEffects[, i] = getFixedEffects(refittedModel)
+          out$refittedResiduals[, i] = residuals(refittedModel, 
+                                                 type = "response")
+          out$refittedPearsonResiduals[, i] = residuals(refittedModel, 
+                                                        type = "pearson")
+        }, silent = TRUE)
       }
-      else {
-        warning(paste("There were", dup, "of", n, "duplicate parameter estimates in the refitted models. This may hint towards a problem with optimizer convergence in the fitted models. Results are likely not reliable. The suggested action is to not use the refitting procedure, and diagnose with tools available for the normal (not refitted) simulated residuals. If you absolutely require the refitting procedure, try changing tolerance / iterations in the optimizer settings."))
-        out$problems[[length(out$problems) + 1]] = "error in refit"
+      if (anyNA(out$refittedResiduals)) 
+        warning("DHARMa::simulateResiduals warning: on refit = TRUE, at least one of the refitted models produced an error. Inspect the refitted model values. Results may not be reliable.")
+      dup = sum(duplicated(out$refittedFixedEffects, MARGIN = 2))
+      if (dup > 0) {
+        if (dup < n/3) {
+          warning(paste("There were", dup, "of", n, "duplicate parameter estimates in the refitted models. This may hint towards a problem with optimizer convergence in the fitted models. Results may not be reliable. The suggested action is to not use the refitting procedure, and diagnose with tools available for the normal (not refitted) simulated residuals. If you absolutely require the refitting procedure, try changing tolerance / iterations in the optimizer settings."))
+        }
+        else {
+          warning(paste("There were", dup, "of", n, "duplicate parameter estimates in the refitted models. This may hint towards a problem with optimizer convergence in the fitted models. Results are likely not reliable. The suggested action is to not use the refitting procedure, and diagnose with tools available for the normal (not refitted) simulated residuals. If you absolutely require the refitting procedure, try changing tolerance / iterations in the optimizer settings."))
+          out$problems[[length(out$problems) + 1]] = "error in refit"
+        }
       }
+      out$scaledResiduals = getQuantile(simulations = out$refittedResiduals, 
+                                        observed = out$fittedResiduals, integerResponse = integerResponse, 
+                                        method = method)
     }
-    out$scaledResiduals = getQuantile(simulations = out$refittedResiduals, 
-                                      observed = out$fittedResiduals, integerResponse = integerResponse, 
-                                      method = method)
+    out$time = proc.time() - ptm
+    out$randomState = randomState
+    class(out) = "DHARMa"
+    if (plot == TRUE) 
+      plot(out)
+    return(out)
   }
-  out$time = proc.time() - ptm
-  out$randomState = randomState
-  class(out) = "DHARMa"
-  if (plot == TRUE) 
-    plot(out)
-  return(out)
-}
 
 
 #### Function for doing gof given list of 4 model results ####
 # four_res_list should have a result_list object for each of the four models in
 # alphabetical order by filename (GLMM_Nbin, GLMM_Pois, Nmix_Nbin, Nmix_Pois)
 gof_by_ssr <- function(ssr_str, onemodel_path) {
-
+  
   glmm_nbin_res <- readRDS(paste0(onemodel_path, "GLMM_Nbin", ssr_str, ".RDS"))
   glmm_pois_res <- readRDS(paste0(onemodel_path, "GLMM_Pois", ssr_str, ".RDS"))
   
@@ -343,7 +348,7 @@ gof_by_ssr <- function(ssr_str, onemodel_path) {
       simResidNB <- simulateResiduals(fittedModel = glmm_nbin_res$fit, n = 10000)
     }
   }, error = function(e) {})
-
+  
   tryCatch({
     if (is.null(simResidP)) {
       simResidP  <- modifiedSimResiduals(fittedModel = glmm_pois_res$fit, n = 10000)
@@ -352,7 +357,7 @@ gof_by_ssr <- function(ssr_str, onemodel_path) {
       simResidNB <- modifiedSimResiduals(fittedModel = glmm_nbin_res$fit, n = 10000)
     }
   }, error = function(e) {})
-    
+  
   gof <- data.frame(
     test = c(rep(c("Uniformity", "Dispersion"), 2),
              rep("Uniformity", 8)),
@@ -364,16 +369,16 @@ gof_by_ssr <- function(ssr_str, onemodel_path) {
     pvalue = NA, stat = NA,
     chosenAIConly = c("GLMM_NB", "GLMM_P", "Nmix_BBNB",
                       "Nmix_BBP", "Nmix_BNB", "Nmix_BP")[
-      which.min(unlist(lapply(six_res_list, function(x) x$AIC)))
-    ]
+                        which.min(unlist(lapply(six_res_list, function(x) x$AIC)))
+                      ]
   )
-
+  
   # GLMM gof
   result_unif_P <- testUniformity(simResidP, plot = F)
   result_disp_P <- testDispersion(simResidP, plot = F)
   result_unif_NB <- testUniformity(simResidNB, plot = F)
   result_disp_NB <- testDispersion(simResidNB, plot = F)
-
+  
   gof$pvalue[1] <- result_unif_P$p.value
   gof$pvalue[2] <- result_disp_P$p.value
   gof$pvalue[3] <- result_unif_NB$p.value
@@ -391,9 +396,9 @@ gof_by_ssr <- function(ssr_str, onemodel_path) {
     nmix_BBP_resids  <- rqresid_from_nmixfit(nmix_res = nmix_BBP_res, type = "Site-Sum")
     nmix_BBNB_resids <- rqresid_from_nmixfit(nmix_res = nmix_BBNB_res, type = "Site-Sum")
     all_nmix_resids_ss <- list(nmix_BP_resids,
-                            nmix_BNB_resids,
-                            nmix_BBP_resids,
-                            nmix_BBNB_resids)
+                               nmix_BNB_resids,
+                               nmix_BBP_resids,
+                               nmix_BBNB_resids)
     saveRDS(all_nmix_resids_ss, paste0("output/residuals/rqres_ss", ssr_str, ".RDS"))
   } else {
     all_nmix_resids_ss <- readRDS(paste0("output/residuals/rqres_ss", ssr_str, ".RDS"))
@@ -404,9 +409,9 @@ gof_by_ssr <- function(ssr_str, onemodel_path) {
     nmix_BBP_resids  <- rqresid_from_nmixfit(nmix_res = nmix_BBP_res, type = "Marginal")
     nmix_BBNB_resids <- rqresid_from_nmixfit(nmix_res = nmix_BBNB_res, type = "Marginal")
     all_nmix_resids_mar <- list(nmix_BP_resids,
-                            nmix_BNB_resids,
-                            nmix_BBP_resids,
-                            nmix_BBNB_resids)
+                                nmix_BNB_resids,
+                                nmix_BBP_resids,
+                                nmix_BBNB_resids)
     saveRDS(all_nmix_resids_mar, paste0("output/residuals/rqres_mar", ssr_str, ".RDS"))
   } else {
     all_nmix_resids_mar <- readRDS(paste0("output/residuals/rqres_mar", ssr_str, ".RDS"))
@@ -418,7 +423,7 @@ gof_by_ssr <- function(ssr_str, onemodel_path) {
   nmix_BNB_resids  <- all_nmix_resids_ss[[2]]
   nmix_BBP_resids  <- all_nmix_resids_ss[[3]]
   nmix_BBNB_resids <- all_nmix_resids_ss[[4]]
-
+  
   # N-mixture gof
   gof$pvalue[8] <- ks.test(nmix_BP_resids  , pnorm)$p.value
   gof$pvalue[7] <- ks.test(nmix_BNB_resids , pnorm)$p.value
@@ -456,41 +461,8 @@ gof_by_ssr <- function(ssr_str, onemodel_path) {
   gof$stat[11] <- ks.test(nmix_BNB_resids , pnorm)$statistic
   gof$stat[10] <- ks.test(nmix_BBP_resids , pnorm)$statistic
   gof$stat[9]  <- ks.test(nmix_BBNB_resids, pnorm)$statistic
-
+  
   return(gof)
-}
-
-#### Function for refitting N-mixture model including year in detection ####
-test_add_year_det <- function(best_result) {
-  
-  nmix_refit <- refit_as_nimble(best_result, 
-                                K = best_result$K, yearInDet = TRUE,
-                                yearInteractions = FALSE)
-  
-  
-  # coeffs_df <- bind_rows(state_coeffs, det_coeffs, alpha_coeffs)
-  # rownames(coeffs_df) <- NULL
-  
-  params <- c(best_result$coefficients$param[1:9],
-              paste0("yearDet", 2014:2020),
-              best_result$coefficients$param[10:nrow(best_result$coefficients)])
-  
-  ses <- tryCatch(sqrt(diag(solve(-nmix_refit[[1]]$hessian))),
-                  error = function(err) {
-                    rep(NA, length(nmix_refit[[1]]$par))
-                  })
-  
-  coeffs_df <- data.frame(
-    param = params,
-    est = nmix_refit[[1]]$par,
-    se = ses
-  )
-  
-  return(list(
-    original_AIC = best_result$AIC,
-    refit_AIC = AIC_optim(nmix_refit[[1]]),
-    chosen = best_result$AIC > AIC_optim(nmix_refit[[1]]),
-    refit_coeffs = coeffs_df))
 }
 
 stability_check <- function(ssr_str, moddist, onemodel_path) {

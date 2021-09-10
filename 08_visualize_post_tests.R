@@ -1,11 +1,19 @@
+# 08_visualize_post_tests.R
+# Author: Benjamin R. Goldstein
+# Date: 2/1/2021
+
+### Script 8: Visualize posttests
+# This sccript contains code for generating figures 3-5 and supplemental figure
+# 3. It also creates summaries of AIC stability.
 ##### 1. Setup #####
 library(tidyverse)
 source("06_post_tests.R")
 source("read_results_helper_file.R")
 library(grid)
 library(gridExtra)
+library(glmmTMB)
 
-posttest_path <- "output/posttests/"
+posttest_path <- "output/posttests_oneyear/"
 color_facet_strips <- function(p) {
   g <- ggplotGrob(p)
   strips <- which(grepl('strip', g$layout$name))
@@ -162,17 +170,14 @@ gof_df %>%
 gof_plot_A <- gof_df %>% 
   mutate(`Selected model` = fit_model == chosenAIConly) %>% 
   filter(test == "Uniformity",
-         resid_type != "Marginal RQ") %>%
-  ggplot(aes(pvalue, fill = `Selected model`)) +
-  geom_histogram(bins = 20) + 
-  scale_fill_manual(values = tf_colors, name = "Selected") +
-  # scale_shape_manual(values = tf_shapes, name = "Selected") +
+         resid_type != "Marginal RQ",
+         `Selected model`) %>%
+  ggplot(aes(pvalue)) +
+  geom_histogram(bins = 20, fill = "black") + 
   geom_vline(xintercept = 0.05, col = "gray") +
-  # xlab("P-value from KS test for normality of residuals") +
   xlab("") +
   scale_x_continuous(breaks = c(0.05, 0.5, 0.9)) + ylab("") +
-  # ggtitle("A. All models") +
-  theme(#axis.text.x = element_blank(), 
+  theme(
     axis.ticks.x = element_blank(),
     panel.grid = element_line(color = "#ededed"),
     panel.grid.major.y = element_blank(),
@@ -185,34 +190,29 @@ gof_plot_A <- gof_df %>%
   facet_wrap(~fit_model, nrow = 2)
 
 
-# gof_legend <- get_legend(gof_plot_A)
-# gof_plot_A <- gof_plot_A + theme(legend.position = "none")
 gof_plot_A <- color_facet_strips(gof_plot_A)
-ggsave("output/plots/FigS6_GOF.jpg", gof_plot_A, device = "jpg",
+ggsave("output/plots/Fig3.jpg", gof_plot_A, device = "jpg",
        width = 8, height = 4)
 
-# extract ssrs where BB-NB failed but was chosen
-failed_nbin <- gof_df %>% 
-  filter(fit_model == "GLMM_Nbin", 
-         chosenAIConly == "GLMM_Nbin",
-         pvalue < 0.05) %>% 
-  select(species, subregion) %>% 
+failed <- gof_df %>% 
+  filter(pvalue < 0.05, 
+         test == "Uniformity",
+         fit_model %in% c("GLMM_Nbin", "GLMM_Pois"), 
+         chosenAIConly == fit_model) %>% 
   mutate(ssr = paste0(subregion, species))
 
 gof_plot_B <- gof_df %>% 
   mutate(ssr = paste0(subregion, species)) %>% 
   filter(test == "Uniformity", 
-         ssr %in% failed_nbin$ssr,
+         ssr %in% failed$ssr,
          resid_type != "Marginal RQ") %>% 
   ggplot(aes(pvalue, fill = chosenAIConly==fit_model)) +
   geom_histogram(bins = 20) + 
   scale_fill_manual(values = tf_colors, name = "Selected") +
-  # scale_shape_manual(values = tf_shapes, name = "Selected") +
   geom_vline(xintercept = 0.05, col = "gray") +
-  # ggtitle("B. Datasets selected as GLMM Nbin, with p < 0.05 in GLMM Nbin  GoF") +
   xlab("P-value from KS test for normality of residuals") +
   scale_x_continuous(breaks = c(0.1, 0.5, 0.9)) + ylab("") +
-  theme(#axis.text.x = element_blank(), 
+  theme(
     axis.ticks.x = element_blank(),
     panel.grid = element_line(color = "#ededed"),
     panel.grid.major.y = element_blank(),
@@ -226,7 +226,7 @@ gof_plot_B <- gof_df %>%
   facet_wrap(~fit_model, nrow = 2)
 
 gof_plot_B <- color_facet_strips(gof_plot_B)
-ggsave("output/plots/FigS5_GOF.jpg", gof_plot_B, device = "jpg",
+ggsave("output/plots/FigS3.jpg", gof_plot_B, device = "jpg",
        width = 8, height = 4)
 
 
@@ -234,7 +234,7 @@ ggsave("output/plots/FigS5_GOF.jpg", gof_plot_B, device = "jpg",
 
 ##### 3. Plot abundance value comparisons #####
 
-accept_abd_names <- c("elevation", "precip", "tmax")
+accept_abd_names <- c("elevation")
 
 
 signs_agree <- list()
@@ -289,7 +289,7 @@ est_plots <- list()
 se_plots <- list()
 model_combos_list <- list()
 
-for (j in 1:4) {
+for (j in 1:2) {
   parname <- unique(mod_coeffs_df$param)[j]
   this_coeffs <- mod_coeffs_df %>% filter(param == parname)
   
@@ -317,91 +317,71 @@ for (j in 1:4) {
       select(moddist, species, sr, est, se) %>% 
       rename(model2 = moddist, est2 = est, se2 = se)
     combdat[[i]] <- left_join(dat1, dat2) %>% 
-      filter(est1 > -10 & est1 < 10 & est2 > -10 & est2 < 10) %>% 
+      filter(est1 > -10 & est1 < 10 & est2 > -10 & est2 < 10) %>%
       filter(se1 < 10 & se2 < 10)
     
     if (parname == "(Intercept)") {
       combdat[[i]] <- combdat[[i]] %>% 
         mutate(est1 = exp(est1), est2 = exp(est2))
     }
-    
-    # Point estimates
-    lmlist_est[[i]] <- lm(est2 ~ est1, data = combdat[[i]])
-    model_combos_est$R2[i] <- summary(lmlist_est[[i]])$r.squared
-    model_combos_est$slope[i] <- summary(lmlist_est[[i]])$coefficients[2,1]
-    model_combos_est$int[i] <- summary(lmlist_est[[i]])$coefficients[1,1]
-    
-    model_combos_est$slope_diff_from1[i] <- 
-      sign(summary(lmlist_est[[i]])$coefficients[2,1] + 
-             1.96 * summary(lmlist_est[[i]])$coefficients[2,2] - 1) ==
-      sign(summary(lmlist_est[[i]])$coefficients[2,1] - 
-             1.96 * summary(lmlist_est[[i]])$coefficients[2,2] - 1)
-    
-    model_combos_est$int_diff_from0[i] <- 
-      sign(summary(lmlist_est[[i]])$coefficients[1,1] + 
-             1.96 * summary(lmlist_est[[i]])$coefficients[1,2]) ==
-      sign(summary(lmlist_est[[i]])$coefficients[1,1] - 
-             1.96 * summary(lmlist_est[[i]])$coefficients[1,2])
-    
-    # Standard errors
-    lmlist_se[[i]] <- lm(se2 ~ se1, data = combdat[[i]])
-    model_combos_se$R2[i] <- summary(lmlist_se[[i]])$r.squared
-    model_combos_se$slope[i] <- summary(lmlist_se[[i]])$coefficients[2,1]
-    model_combos_se$int[i] <- summary(lmlist_se[[i]])$coefficients[1,1]
-    
-    model_combos_se$slope_diff_from1[i] <- 
-      sign(summary(lmlist_se[[i]])$coefficients[2,1] + 
-             1.96 * summary(lmlist_se[[i]])$coefficients[2,2] - 1) ==
-      sign(summary(lmlist_se[[i]])$coefficients[2,1] - 
-             1.96 * summary(lmlist_se[[i]])$coefficients[2,2] - 1)
-    
-    model_combos_se$int_diff_from0[i] <- 
-      sign(summary(lmlist_se[[i]])$coefficients[1,1] + 
-             1.96 * summary(lmlist_se[[i]])$coefficients[1,2]) ==
-      sign(summary(lmlist_se[[i]])$coefficients[1,1] - 
-             1.96 * summary(lmlist_se[[i]])$coefficients[1,2])
-    
   }
-  combdat_df <- do.call(rbind, combdat)
+  combdat_df <- do.call(rbind, combdat) %>% 
+    mutate(cat = paste0(model1, " - ", model2))
   
-  est_plots[[j]] <- ggplot(combdat_df, aes(est1, est2)) + 
-    geom_point(cex = 0.7) +
-    facet_grid(model1~model2) +
-    geom_smooth(method='lm', formula = y~x)+
-    geom_abline(slope = 1, intercept = 0, col = "lightgray") +
+  combdat_df$est_diff <- log(combdat_df$est1) - log(combdat_df$est2)
+  combdat_df$se_log_ratio <- log(combdat_df$se1) - log(combdat_df$se2)
+  
+  if (parname == "elevation") parname <- "Elevation"
+
+  est_plots[[j]] <- combdat_df %>% 
+    ggplot(aes(reorder(cat, est_diff, mean, na.rm = T), est_diff)) + 
+    geom_boxplot(outlier.shape = NA) +
+    geom_hline(yintercept = 0) +
     theme_minimal() +
-    scale_x_continuous(breaks = c(-8, -4, 0, 4, 8)) +
-    scale_y_continuous(breaks = c(-8, -4, 0, 4, 8)) +
-    theme(panel.grid.minor = element_blank()) +
-    coord_fixed() +
-    xlab("point estimate") + 
-    ylab("point estimate") +
-    ggtitle(paste0(c("A. ", "B. ", "C. ", "D. ")[j], parname))
-  
-  ggsave(filename = paste0("output/plots/Figs7",
-                           c("A", "B", "C", "D")[j],
-                           "_est_", parname, ".jpg"), 
-         plot = est_plots[[j]], width = 5, height = 5)
-  
-  se_plots[[j]] <- ggplot(combdat_df, aes(se1, se2)) + 
-    geom_point(cex = 0.7) +
-    facet_grid(model1~model2) +
-    geom_smooth(method='lm', formula = y~x)+
-    geom_abline(slope = 1, intercept = 0, col = "lightgray") +
-    theme_minimal() +
-    scale_x_continuous(breaks = c(-8, -4, 0, 4, 8)) +
-    scale_y_continuous(breaks = c(-8, -4, 0, 4, 8)) +
-    theme(panel.grid.minor = element_blank()) +
-    coord_fixed() +
-    xlab("standard error") + 
-    ylab("standard error") +
-    ggtitle(paste0(c("A. ", "B. ", "C. ", "D. ")[j], parname))
-  
-  ggsave(filename = paste0("output/plots/FigS8",
-                           c("A", "B", "C", "D")[j],
-                           "_se_", parname, ".jpg"), 
-         plot = se_plots[[j]], width = 5, height = 5)
+    scale_y_continuous(limits = c(-4.5, 4)) +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major.y = element_blank(),
+          panel.background = element_rect(fill= "white", color = "white"),
+          plot.background = element_rect(fill = "white", color = "white")) +
+    coord_flip() +
+    xlab("") + 
+    ylab("") +
+    ggtitle(paste0(c("(a) ", "(b) ", "(c) ", "(d) ")[j], parname))
   
   model_combos_list[[j]] <- bind_rows(model_combos_est, model_combos_se) %>% 
     mutate(param = parname)
 }
+
+
+grid.arrange(grobs = est_plots, nrow=1, bottom = "Difference in estimates") %>%
+  ggsave(filename = "output/plots/Fig4.jpg",
+         width = 8, height = 7)
+
+
+
+this_coeffs <- mod_coeffs_df %>% filter(param %in% c("Intercept", "elevation"))
+
+ylim1 <- boxplot.stats(this_coeffs$se)$stats[c(1, 5)]
+
+(this_coeffs %>% 
+    mutate(param = ifelse(param == "Intercept", "(a) Intercept",
+                          ifelse(param == "elevation", "(b) Elevation",
+                                 NA))) %>% 
+    ggplot() +
+    geom_boxplot(aes(moddist, se, fill = moddist), outlier.shape = NA) + 
+    ylim(c(0, 2)) +
+    scale_fill_manual("", values = model_fill_colors) +
+    xlab("") + ylab("Estimated standard error") +
+    theme_minimal() +
+    coord_flip() +
+    theme(panel.grid.major.y = element_blank(),
+          panel.grid.minor = element_blank(),
+          plot.background = element_rect(fill = "white", colour = "white")) +
+    facet_wrap(~factor(param, levels = c("(a) Intercept", "(b) Elevation")))) %>% 
+  ggsave(filename = "output/plots/Fig5.jpg", 
+         width = 8, height = 4)
+
+
+
+autocorr_df <- read_csv("output/posttests_oneyear/autocorr_df.csv")
+mean(autocorr_df$p.value < 0.05, na.rm = T)

@@ -368,7 +368,7 @@ sr_map <- ggplot(mapping = aes(long, lat)) +
   coord_fixed(1.2) +
   theme_minimal() +
   theme(plot.background = element_rect("white", colour = "white"))
-ggsave(sr_map, filename = "output/plots/FigS1_sr_map.jpg", width = 5, height = 6)
+ggsave(sr_map, filename = "output/plots/Fig6.jpg", width = 5, height = 6)
 
 
 
@@ -467,5 +467,5 @@ spec_choice_plot <- wide_om_df %>%
         plot.background = element_rect(fill = "white", color = "white"),
         panel.grid.minor.x = element_blank()) +
   coord_flip()
-ggsave("output/plots/FigS1_spec_choice.jpg", device = "jpeg", spec_choice_plot,
+ggsave("output/plots/FigS2.jpg", device = "jpeg", spec_choice_plot,
        width = 6, height = 4)
