@@ -32,7 +32,7 @@ CA_poly <- maptools::map2SpatialPolygons(
   CA_map, IDs = "california", proj4string = CRS("+proj=longlat +datum=WGS84")
 ) %>% spTransform(good_CRS)
 
-subregion_radius <- 5000
+subregion_radius <- 10000
 subregion_buffer <- 50000
 
 ##### 1. Prepare the checklist data #####
@@ -47,10 +47,9 @@ CA_checklists <- CA_checklists_raw %>%
   mutate(month = lubridate::month(OBSERVATION.DATE),
          year = lubridate::year(OBSERVATION.DATE)) %>% 
   filter(ALL.SPECIES.REPORTED == 1, 
-         PROTOCOL.CODE %in% c("P21", "P22"),
+         PROTOCOL.CODE == "P21",
          month %in% 4:6,
-         year %in% 2020,
-         EFFORT.DISTANCE.KM <= 2)
+         year == 2019)
 
 # For stationary protocol, distance = 0
 CA_checklists$EFFORT.DISTANCE.KM[
@@ -119,7 +118,7 @@ CA_grid_coords_all <- CA_grid_coords %>%
 # - Accept the coordinate with the highest n_cl
 # - Remove all coordinates within 25 km of that one
 
-ncenter <- 15
+ncenter <- 20
 accepted_centers <- CA_grid_coords_all[0,]
 CA_grid_coords <- CA_grid_coords_all
 
