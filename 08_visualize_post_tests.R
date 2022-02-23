@@ -1,9 +1,14 @@
+# 08_visualize_post_tests.R
+# Author: Benjamin R. Goldstein
+# Date: 2/23/2022
+
 ##### 1. Setup #####
 library(tidyverse)
 source("06_post_tests.R")
 source("read_results_helper_file.R")
 library(grid)
 library(gridExtra)
+library(glmmTMB)
 
 posttest_path <- "output/posttests/"
 color_facet_strips <- function(p) {
@@ -150,7 +155,7 @@ gof_df %>%
          test == "Uniformity") %>% 
   count(fit_model)
 
-# 
+ 
 gof_df %>% 
   filter(pvalue < 0.05, test == "Uniformity", chosenAIConly == "Nmix_BBNB") %>% 
   group_by(species, subregion) %>% 
@@ -158,14 +163,15 @@ gof_df %>%
   count(nfail)
 
 
-# Visualize GOF
+#### Fig 3. GOF ####
 gof_plot_A <- gof_df %>% 
   mutate(`Selected model` = fit_model == chosenAIConly) %>% 
   filter(test == "Uniformity",
-         resid_type != "Marginal RQ") %>%
-  ggplot(aes(pvalue, fill = `Selected model`)) +
-  geom_histogram(bins = 20) + 
-  scale_fill_manual(values = tf_colors, name = "Selected") +
+         resid_type != "Marginal RQ",
+         `Selected model`) %>%
+  ggplot(aes(pvalue)) +
+  geom_histogram(bins = 20, fill = "black") + 
+  # scale_fill_manual(values = tf_colors, name = "Selected") +
   # scale_shape_manual(values = tf_shapes, name = "Selected") +
   geom_vline(xintercept = 0.05, col = "gray") +
   # xlab("P-value from KS test for normality of residuals") +
@@ -188,24 +194,25 @@ gof_plot_A <- gof_df %>%
 # gof_legend <- get_legend(gof_plot_A)
 # gof_plot_A <- gof_plot_A + theme(legend.position = "none")
 gof_plot_A <- color_facet_strips(gof_plot_A)
-ggsave("output/plots/FigS6_GOF.jpg", gof_plot_A, device = "jpg",
+ggsave("output/plots/Fig3_resub.pdf", gof_plot_A, device = "pdf",
        width = 8, height = 4)
 
-# extract ssrs where BB-NB failed but was chosen
-failed_nbin <- gof_df %>% 
-  filter(fit_model == "GLMM_Nbin", 
-         chosenAIConly == "GLMM_Nbin",
-         pvalue < 0.05) %>% 
-  select(species, subregion) %>% 
+#### Fig S3. GOF where GLMMs were chosen but failed their GOF ####
+failed <- gof_df %>% 
+  filter(pvalue < 0.05, 
+         test == "Uniformity",
+         fit_model %in% c("GLMM_Nbin", "GLMM_Pois"), 
+         chosenAIConly == fit_model) %>% 
+  # select(species, subregion) %>% 
   mutate(ssr = paste0(subregion, species))
 
 gof_plot_B <- gof_df %>% 
   mutate(ssr = paste0(subregion, species)) %>% 
   filter(test == "Uniformity", 
-         ssr %in% failed_nbin$ssr,
+         ssr %in% failed$ssr,
          resid_type != "Marginal RQ") %>% 
-  ggplot(aes(pvalue, fill = chosenAIConly==fit_model)) +
-  geom_histogram(bins = 20) + 
+  ggplot(aes(pvalue)) +
+  geom_histogram(bins = 20, fill = "black") + 
   scale_fill_manual(values = tf_colors, name = "Selected") +
   # scale_shape_manual(values = tf_shapes, name = "Selected") +
   geom_vline(xintercept = 0.05, col = "gray") +
@@ -232,9 +239,9 @@ ggsave("output/plots/FigS5_GOF.jpg", gof_plot_B, device = "jpg",
 
 
 
-##### 3. Plot abundance value comparisons #####
+#### Fig 4. Plot abundance value comparisons ####
 
-accept_abd_names <- c("elevation", "precip", "tmax")
+accept_abd_names <- c("elevation")
 
 
 signs_agree <- list()
@@ -289,7 +296,7 @@ est_plots <- list()
 se_plots <- list()
 model_combos_list <- list()
 
-for (j in 1:4) {
+for (j in 1:2) {
   parname <- unique(mod_coeffs_df$param)[j]
   this_coeffs <- mod_coeffs_df %>% filter(param == parname)
   
@@ -317,7 +324,7 @@ for (j in 1:4) {
       select(moddist, species, sr, est, se) %>% 
       rename(model2 = moddist, est2 = est, se2 = se)
     combdat[[i]] <- left_join(dat1, dat2) %>% 
-      filter(est1 > -10 & est1 < 10 & est2 > -10 & est2 < 10) %>% 
+      filter(est1 > -10 & est1 < 10 & est2 > -10 & est2 < 10) %>%
       filter(se1 < 10 & se2 < 10)
     
     if (parname == "(Intercept)") {
@@ -362,7 +369,12 @@ for (j in 1:4) {
              1.96 * summary(lmlist_se[[i]])$coefficients[1,2])
     
   }
-  combdat_df <- do.call(rbind, combdat)
+  combdat_df <- do.call(rbind, combdat) %>% 
+    mutate(cat = paste0(model1, " - ", model2))
+  
+  combdat_df$est_diff <- (combdat_df$est1) - (combdat_df$est2)
+  combdat_df$se_log_ratio <- log(combdat_df$se1) - log(combdat_df$se2)
+  
   
   est_plots[[j]] <- ggplot(combdat_df, aes(est1, est2)) + 
     geom_point(cex = 0.7) +
@@ -372,36 +384,127 @@ for (j in 1:4) {
     theme_minimal() +
     scale_x_continuous(breaks = c(-8, -4, 0, 4, 8)) +
     scale_y_continuous(breaks = c(-8, -4, 0, 4, 8)) +
-    theme(panel.grid.minor = element_blank()) +
+    theme(panel.grid.minor = element_blank(), 
+          panel.background = element_rect(fill= "white", color = "white"),
+          plot.background = element_rect(fill = "white", color = "white")) +
     coord_fixed() +
     xlab("point estimate") + 
     ylab("point estimate") +
-    ggtitle(paste0(c("A. ", "B. ", "C. ", "D. ")[j], parname))
+    ggtitle(paste0(c("(a) ", "(b) ", "(c) ", "(d) ")[j], parname))
   
-  ggsave(filename = paste0("output/plots/Figs7",
-                           c("A", "B", "C", "D")[j],
-                           "_est_", parname, ".jpg"), 
-         plot = est_plots[[j]], width = 5, height = 5)
+  # ggsave(filename = paste0("output/plots/Figs7",
+  #                          c("A", "B", "C", "D")[j],
+  #                          "_est_", parname, ".jpg"), 
+  #        plot = est_plots[[j]], width = 5, height = 5)
+  # 
+  # se_plots[[j]] <- ggplot(combdat_df, aes(se_log_ratio)) + 
+  #   # geom_point(cex = 0.7) +
+  #   geom_histogram() +
+  #   facet_grid(model1~model2, scales = "free") +
+  #   # geom_smooth(method='lm', formula = y~x)+
+  #   # geom_abline(slope = 1, intercept = 0, col = "lightgray") +
+  #   geom_vline(xintercept = 0) +
+  #   theme_minimal() +
+  #   # scale_x_continuous(breaks = c(-8, -4, 0, 4, 8)) +
+  #   # scale_y_continuous(breaks = c(-8, -4, 0, 4, 8)) +
+  #   theme(panel.grid.minor = element_blank(),
+  #         panel.background = element_rect(fill= "white", color = "white"),
+  #         plot.background = element_rect(fill = "white", color = "white")) +
+  #   # coord_fixed() +
+  #   xlab("standard error") + 
+  #   ylab("standard error") +
+  #   ggtitle(paste0(c("A. ", "B. ", "C. ", "D. ")[j], parname))
   
-  se_plots[[j]] <- ggplot(combdat_df, aes(se1, se2)) + 
-    geom_point(cex = 0.7) +
-    facet_grid(model1~model2) +
-    geom_smooth(method='lm', formula = y~x)+
-    geom_abline(slope = 1, intercept = 0, col = "lightgray") +
+  # cat_order <- combdat_df %>% 
+  #   group_by(cat) %>% 
+  #   summarize(mean = mean(se_log_ratio)) %>% 
+  #   arrange(mean)
+  
+  if (parname == "elevation") parname <- "Elevation"
+  se_plots[[j]] <- combdat_df %>% 
+    # mutate(cat = reorder(cat, levels = ))
+    ggplot(aes(reorder(cat, se_log_ratio, mean), se_log_ratio)) + 
+    # geom_point(cex = 0.7) +
+    geom_boxplot(outlier.shape = NA) +
+    # facet_grid(model1~model2, scales = "free") +
+    # geom_smooth(method='lm', formula = y~x)+
+    # geom_abline(slope = 1, intercept = 0, col = "lightgray") +
+    geom_hline(yintercept = 0) +
     theme_minimal() +
-    scale_x_continuous(breaks = c(-8, -4, 0, 4, 8)) +
-    scale_y_continuous(breaks = c(-8, -4, 0, 4, 8)) +
-    theme(panel.grid.minor = element_blank()) +
-    coord_fixed() +
-    xlab("standard error") + 
-    ylab("standard error") +
-    ggtitle(paste0(c("A. ", "B. ", "C. ", "D. ")[j], parname))
+    # scale_x_continuous(breaks = c(-8, -4, 0, 4, 8)) +
+    # scale_y_continuous() +
+    theme(panel.grid.minor = element_blank(),
+          panel.background = element_rect(fill= "white", color = "white"),
+          plot.background = element_rect(fill = "white", color = "white")) +
+    coord_flip(ylim = c(-3, 5)) +
+    xlab("") + 
+    ylab("Log ratio of standard errors") +
+    ggtitle(paste0(c("(a) ", "(b) ", "(c) ", "(d) ")[j], parname))
   
-  ggsave(filename = paste0("output/plots/FigS8",
-                           c("A", "B", "C", "D")[j],
-                           "_se_", parname, ".jpg"), 
-         plot = se_plots[[j]], width = 5, height = 5)
+  if (j == 1) {
+    this_ylim <- c(-6, 3)
+  } else  {
+    this_ylim <- c(-1.5, 1.5)
+  }
+  
+  est_plots[[j]] <- combdat_df %>% 
+    # mutate(cat = reorder(cat, levels = ))
+    ggplot(aes(reorder(cat, est_diff, mean, na.rm = T), est_diff)) + 
+    # geom_point(cex = 0.7) +
+    geom_boxplot(outlier.shape = NA) +
+    # facet_grid(model1~model2, scales = "free") +
+    # geom_smooth(method='lm', formula = y~x)+
+    # geom_abline(slope = 1, intercept = 0, col = "lightgray") +
+    coord_flip(ylim = this_ylim) +
+    geom_hline(yintercept = 0) +
+    theme_minimal() +
+    # scale_x_continuous(breaks = c(-8, -4, 0, 4, 8)) +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major.y = element_blank(),
+          panel.background = element_rect(fill= "white", color = "white"),
+          plot.background = element_rect(fill = "white", color = "white")) +
+    # coord_flip() +
+    xlab("") + 
+    ylab("") +
+    ggtitle(paste0(c("(a) ", "(b) ", "(c) ", "(d) ")[j], parname))
+  
+  # ggsave(filename = paste0("output/plots/FigS8",
+  #                          c("A", "B", "C", "D")[j],
+  #                          "_se_", parname, ".jpg"), 
+  #        plot = se_plots[[j]], width = 5, height = 5)
   
   model_combos_list[[j]] <- bind_rows(model_combos_est, model_combos_se) %>% 
     mutate(param = parname)
 }
+
+
+grid.arrange(grobs = est_plots, nrow=1, bottom = "Difference in estimates") %>%
+  ggsave(filename = "output/plots/Fig4_resub.pdf",
+         width = 8, height = 7)
+
+#### Fig 5. Plot standard error comparisons ####
+
+this_coeffs <- mod_coeffs_df %>% filter(param %in% c("Intercept", "elevation"))
+
+ylim1 <- boxplot.stats(this_coeffs$se)$stats[c(1, 5)]
+
+(this_coeffs %>% 
+    mutate(param = ifelse(param == "Intercept", "(a) Intercept",
+                          ifelse(param == "elevation", "(b) Elevation",
+                                 NA))) %>% 
+    ggplot() +
+    geom_boxplot(aes(moddist, se, fill = moddist), outlier.shape = NA) + 
+    ylim(c(0, 2)) +
+    scale_fill_manual("", values = model_fill_colors) +
+    xlab("") + ylab("Estimated standard error") +
+    theme_minimal() +
+    coord_flip() +
+    theme(panel.grid.major.y = element_blank(),
+          panel.grid.minor = element_blank(),
+          plot.background = element_rect(fill = "white", colour = "white")) +
+    # ggtitle(paste0(c("A. ", "B. ", "C. ", "D. ")[j], parname)) +
+    facet_wrap(~factor(param, levels = c("(a) Intercept", "(b) Elevation")))) %>% 
+  # grid.arrange(grobs = se_plots, nrow=1) %>% 
+  ggsave(filename = "output/plots/Fig5_resub.pdf", 
+         width = 8, height = 4)
+

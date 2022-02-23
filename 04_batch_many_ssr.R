@@ -1,13 +1,13 @@
 # 00_process_raw_eBird.R
 # Author: Benjamin R. Goldstein
-# Date: ???
+# Date: 2/23/2022
 
 ### Script 4: Run parallelized batches of model fits.
 # (1) Source helper files and read in data
 # (2) Set up lists of target SSRs
 # (3) Batch run models
 
-# NOTE that this script was developed to accomodate the case that some SSRs
+# NOTE that this script was developed to accommodate the case that some SSRs
 # are already fit, but some calls may error if none have been. However, if
 # you hit an error and keep running subsequent lines, the script should work.
 
@@ -85,7 +85,7 @@ parLapply(cl = cl, X = targets_as_list_list, function(xx) {
                   overwrite = FALSE,#c("GLMM_Pois", "GLMM_Nbin",
                   #  "Nmix_BP", "Nmix_BNB",
                   # "Nmix_BBP", "Nmix_BBNB"),
-                  path_prefix = "output/onemodel_results/"
+                  path_prefix = "output/onemodel_oneyear/"
       )
     }, error = function(err) {as.character(err)}
     )

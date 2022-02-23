@@ -1,13 +1,6 @@
 # 02_prepare_covariate_data.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
-
-### Script 2: Associate eBird checklists with spatial covariate data
-# (0) Load inputs
-# (1) Get data rasters
-# (2) Create buffers for landcover data extraction
-# (3) Assign data to checklists
-# (4) Observations are aggregated to a 50m spatial grid
+# Date: 2/23/2021
 
 library(sp)
 library(raster)
@@ -33,7 +26,7 @@ center_pts <- SpatialPointsDataFrame(coords = centers[, c("x", "y")],
                                                  +x_0=0 +y_0=-4000000 
                                                  +ellps=GRS80 +datum=NAD83 
                                                  +units=m +no_defs")) %>% 
-              spTransform(crs(evt1))
+  spTransform(crs(evt1))
 CA_map <- maps::map(database = "state", regions = "CA", fill = T, plot = F)
 CA_poly <- maptools::map2SpatialPolygons(
   CA_map, IDs = "california", proj4string = CRS("+proj=longlat +datum=WGS84")
@@ -48,24 +41,7 @@ r2 <- raster::getData("worldclim", var = "alt", res = 0.5, path = "data",
                       lon = -115, lat = 45)
 target_raster <- raster(extent(CA_poly), resolution = 150, crs = crs(CA_poly))
 r_elev <- raster::mosaic(r, r2, fun = mean) %>% 
-          raster::projectRaster(target_raster)
-
-
-r <- raster::getData("worldclim", var = "prec", res = 0.5, path = "data",
-                     lon = -125, lat = 45)
-r2 <- raster::getData("worldclim", var = "prec", res = 0.5, path = "data",
-                      lon = -115, lat = 45)
-r_prec <- raster::mosaic(r, r2, fun = mean) %>% 
   raster::projectRaster(target_raster)
-
-
-r <- raster::getData("worldclim", var = "tmax", res = 0.5, path = "data",
-                     lon = -125, lat = 45)
-r2 <- raster::getData("worldclim", var = "tmax", res = 0.5, path = "data",
-                      lon = -115, lat = 45)
-r_tmax <- raster::mosaic(r, r2, fun = mean) %>% 
-  raster::projectRaster(target_raster)
-
 
 ##### 1. Get rasters at each subregion #####
 # Get data for each buffer
@@ -100,12 +76,8 @@ for (ctr in 1:length(center_buffers)) {
   }
   
   elev_raster <- crop(r_elev, extent(center_buffers[ctr,]))
-  prec_raster <- crop(r_prec, extent(center_buffers[ctr,]))
-  tmax_raster <- crop(r_tmax, extent(center_buffers[ctr,]))
   values(elev_raster)[is.na(values(elev_raster))] <- 0
-  values(prec_raster)[is.na(values(elev_raster))] <- 0
-  values(tmax_raster)[is.na(values(elev_raster))] <- 0
-
+  
   ### Get a raster of each landcover type: water, vegetation, agriculture, urban
   
   water_raster <- cover_raster
@@ -123,8 +95,6 @@ for (ctr in 1:length(center_buffers)) {
   tree_raster <- cover_raster
   values(tree_raster) <- values(cover_raster) %in% 
     unique(evt_table$VALUE[evt_table$EVT_LF == "Tree"])
-
-##### 2. Create buffers for landcover covariates #####
   
   ### Get a 600m buffer around each point of each covariate
   buffer <- 600
@@ -144,22 +114,20 @@ for (ctr in 1:length(center_buffers)) {
   tree_neigh <- focal(tree_raster, buffer_mtx)
   veg_neigh <- focal(veg_raster, buffer_mtx)
   
-  ##### 3. Associate checklists w data #####
+  ### Now I need to associate the data for this center with its checklists...
   
   checklists_this_ctr <- CA_checklists %>% 
     filter(center == center_buffers[ctr,]$cID)
   
   this_ctr_points <- SpatialPointsDataFrame(
-        coords = checklists_this_ctr[, c("gx", "gy")],
-        data = checklists_this_ctr,
-        proj4string = CRS("+proj=aea +lat_1=34 +lat_2=40.5 +lat_0=0 +lon_0=-120 
+    coords = checklists_this_ctr[, c("gx", "gy")],
+    data = checklists_this_ctr,
+    proj4string = CRS("+proj=aea +lat_1=34 +lat_2=40.5 +lat_0=0 +lon_0=-120 
                  +x_0=0 +y_0=-4000000 +ellps=GRS80 +datum=NAD83 +units=m 
                  +no_defs")) %>% 
     spTransform(CRSobj = crs(evt1))
   
   checklists_this_ctr$elevation <- raster::extract(elev_raster, this_ctr_points)
-  checklists_this_ctr$precip <- raster::extract(prec_raster, this_ctr_points)
-  checklists_this_ctr$tmax <- raster::extract(tmax_raster, this_ctr_points)
   checklists_this_ctr$pct_veg   <- raster::extract(veg_neigh, this_ctr_points)
   checklists_this_ctr$pct_water <- raster::extract(water_neigh, this_ctr_points)
   checklists_this_ctr$pct_urban <- raster::extract(urban_neigh, this_ctr_points)
@@ -167,30 +135,27 @@ for (ctr in 1:length(center_buffers)) {
   checklists_this_ctr$pct_tree  <- raster::extract(tree_neigh, this_ctr_points)
   
   checklists_this_ctr$pct_veg_comb <- checklists_this_ctr$pct_tree +
-                                      checklists_this_ctr$pct_veg
+    checklists_this_ctr$pct_veg
   
   checklists_with_data[[ctr]] <- checklists_this_ctr
 }
 
- checklists_with_data_df <- do.call(bind_rows, checklists_with_data)
+#### 2. Prepare and write output ####
+
+checklists_with_data_df <- do.call(bind_rows, checklists_with_data)
 
 if (nrow(checklists_with_data_df) != nrow(CA_checklists)) stop("Lost some data...")
 
- 
-# Drop obs that are missing data
 checklists_with_data_df <- checklists_with_data_df %>% 
   filter(
-    !is.na(precip),
     !is.na(elevation),
-    !is.na(tmax),
     !is.na(pct_veg),
     !is.na(pct_water),
     !is.na(pct_urban),
     !is.na(pct_tree),
     !is.na(pct_veg_comb),
   )
- 
-##### 4. Write results ######
+
 write_csv(checklists_with_data_df, 
           "intermediate/CA_checklists_w_covariates.csv")
 

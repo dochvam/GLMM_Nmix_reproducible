@@ -1,6 +1,6 @@
 # 01_prepare_eBird_data.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
+# Date: 2/23/2021
 
 ### Script 1: prepare eBird data for modeling.
 # (0) Load inputs 
@@ -31,26 +31,24 @@ CA_map <- maps::map(database = "state", regions = "CA", fill = T, plot = F)
 CA_poly <- maptools::map2SpatialPolygons(
   CA_map, IDs = "california", proj4string = CRS("+proj=longlat +datum=WGS84")
 ) %>% spTransform(good_CRS)
-
-subregion_radius <- 5000
+subregion_radius <- 10000
 subregion_buffer <- 50000
 
 ##### 1. Prepare the checklist data #####
 
 # Clean to:
 # - Only complete checklists
-# - Sampling protocols P21 and P22 only
-# - Breeding season (April - July)
+# - Sampling protocols P21 only
+# - Breeding season (April - July) 2019
 # - Remove checklists with Xs
 
 CA_checklists <- CA_checklists_raw %>% 
   mutate(month = lubridate::month(OBSERVATION.DATE),
          year = lubridate::year(OBSERVATION.DATE)) %>% 
   filter(ALL.SPECIES.REPORTED == 1, 
-         PROTOCOL.CODE %in% c("P21", "P22"),
+         PROTOCOL.CODE == "P21",
          month %in% 4:6,
-         year %in% 2020,
-         EFFORT.DISTANCE.KM <= 2)
+         year == 2019)
 
 # For stationary protocol, distance = 0
 CA_checklists$EFFORT.DISTANCE.KM[
@@ -111,15 +109,15 @@ CA_grid_coords <- as.data.frame(xyFromCell(CA_grid_neighborsums,
 CA_grid_coords$cell <- 1:ncell(CA_grid_neighborsums)
 CA_grid_coords$n_cl <- values(CA_grid_neighborsums)[CA_grid_coords$cell]
 CA_grid_coords_all <- CA_grid_coords %>% 
-                        filter(!is.nan(n_cl)) %>% 
-                        arrange(-n_cl)
+  filter(!is.nan(n_cl)) %>% 
+  arrange(-n_cl)
 
 
 # Protocol:
 # - Accept the coordinate with the highest n_cl
 # - Remove all coordinates within 25 km of that one
 
-ncenter <- 15
+ncenter <- 20
 accepted_centers <- CA_grid_coords_all[0,]
 CA_grid_coords <- CA_grid_coords_all
 

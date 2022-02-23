@@ -1,3 +1,12 @@
+# 06_post_tests.R
+# Author: Benjamin R. Goldstein
+# Date: 2/23/2022
+
+# This script contains a large number of helper functions for handling 
+# post-processing checks including goodness-of-fit, autocorrelation,
+# and stability checks. Some of these functions aren't actually used in the
+# final manuscript workflow but I include them in case they're interesting.
+
 library(DHARMa)
 library(unmarked)
 library(nmixgof)
@@ -7,13 +16,11 @@ library(ape)
 source("03_fit_one_ssr_final.R")
 source("nmixgof_manual.R")
 
-# Post hoc model stuff
-# For each ssr:
-# - Do goodness-of-fit checks on all four models
-# - Refit best N-mixture model with year in detection
-# - Check stability of the N-mixture model
 
 #### Helper functions ####
+
+# Refit a fit model using NIMBLE for a specified value of K. This is used for
+# the stability checking workflow.
 refit_as_nimble <- function(nmix_res_list, K = NULL, dat = NULL) {
   
   if (is.null(K)) {
@@ -62,56 +69,10 @@ refit_as_nimble <- function(nmix_res_list, K = NULL, dat = NULL) {
   return(refit)
 }
 
-refit_as_unmarked <- function(nmix_res) {
-  
-  dat_df <- make_dat_df(nmix_res$species, nmix_res$subregion)
-  mixture <- nmix_res$mixture
-  
-  if (!mixture %in% c("B-P", "B-NB")) {
-    stop("unmarked only supports B-P and B-NB mixtures.")
-  }
-  umMix <- substr(mixture, 3, nchar(mixture))
-  
-  accept_det_names <- clean_vec_names(c("duration", "num_observers"), dat_df)
-  accept_abd_names <- clean_vec_names(c("elevation", "precip", "tmax"), dat_df)
-  
-  f <- unmarked_formula_from_row(nmix_res$best_row, 
-                                 accept_det_names = accept_det_names,
-                                 accept_abd_names = accept_abd_names)
-  
-  umfpc <- unmarkedFramePCount(
-    y = get_var_wide(dat_df, "total_count"), 
-    obsCovs = list(
-      duration = get_var_wide(dat_df, "duration"), 
-      num_observers = get_var_wide(dat_df, "num_observers"), 
-      tod = get_var_wide(dat_df, "tod"), 
-      tod_sq = get_var_wide(dat_df, "tod_sq"), 
-      yday = get_var_wide(dat_df, "yday"), 
-      yday_sq = get_var_wide(dat_df, "yday_sq"), 
-      distance = get_var_wide(dat_df, "distance") 
-    ),
-    siteCovs = data.frame(
-      elevation = get_var_wide(dat_df, "elevation")[,1],
-      precip = get_var_wide(dat_df, "precip")[,1], 
-      tmax = get_var_wide(dat_df, "tmax")[,1], 
-      pct_water = get_var_wide(dat_df, "pct_water")[,1], 
-      pct_ag = get_var_wide(dat_df, "pct_ag")[,1], 
-      pct_tree = get_var_wide(dat_df, "pct_tree")[,1], 
-      pct_veg = get_var_wide(dat_df, "pct_veg")[,1]
-    )
-  )
-  
-  umfit <- pcount(f, umfpc, K = nmix_res$K, mixture = umMix)
-  
-  return(list(
-    refit_AIC = umfit@AIC,
-    original_AIC = nmix_res$AIC,
-    coeffs = umfit@estimates
-  ))
-}
 
-
-
+# Get rqresiduals from an N-mixture fit list. This uses code adapted from
+# Knape et al. 2018--see that paper (here: doi.org/10.1111/2041-210X.13062) 
+# for a description of RQ residuals.
 rqresid_from_nmixfit <- function(nmix_res, type = "Site-Sum") {
   
   if (!type %in% c("Site-Sum", "Observation", "Marginal")) {
@@ -207,7 +168,7 @@ rqresid_from_nmixfit <- function(nmix_res, type = "Site-Sum") {
   }
 }
 
-
+# A slightly hacked version of DHARMa::simResiduals()
 modifiedSimResiduals <- 
   function (fittedModel, n = 250, refit = F, integerResponse = NULL, 
             plot = F, seed = 123, method = c("PIT", "traditional"), 
@@ -308,9 +269,8 @@ modifiedSimResiduals <-
 }
 
 
-#### Function for doing gof given list of 4 model results ####
-# four_res_list should have a result_list object for each of the four models in
-# alphabetical order by filename (GLMM_Nbin, GLMM_Pois, Nmix_Nbin, Nmix_Pois)
+# Function for doing gof for a target SSR. onemodel_path specifies the filepath
+# where the full model fit can be found.
 gof_by_ssr <- function(ssr_str, onemodel_path) {
 
   glmm_nbin_res <- readRDS(paste0(onemodel_path, "GLMM_Nbin", ssr_str, ".RDS"))
@@ -460,39 +420,7 @@ gof_by_ssr <- function(ssr_str, onemodel_path) {
   return(gof)
 }
 
-#### Function for refitting N-mixture model including year in detection ####
-test_add_year_det <- function(best_result) {
-  
-  nmix_refit <- refit_as_nimble(best_result, 
-                                K = best_result$K, yearInDet = TRUE,
-                                yearInteractions = FALSE)
-  
-  
-  # coeffs_df <- bind_rows(state_coeffs, det_coeffs, alpha_coeffs)
-  # rownames(coeffs_df) <- NULL
-  
-  params <- c(best_result$coefficients$param[1:9],
-              paste0("yearDet", 2014:2020),
-              best_result$coefficients$param[10:nrow(best_result$coefficients)])
-  
-  ses <- tryCatch(sqrt(diag(solve(-nmix_refit[[1]]$hessian))),
-                  error = function(err) {
-                    rep(NA, length(nmix_refit[[1]]$par))
-                  })
-  
-  coeffs_df <- data.frame(
-    param = params,
-    est = nmix_refit[[1]]$par,
-    se = ses
-  )
-  
-  return(list(
-    original_AIC = best_result$AIC,
-    refit_AIC = AIC_optim(nmix_refit[[1]]),
-    chosen = best_result$AIC > AIC_optim(nmix_refit[[1]]),
-    refit_coeffs = coeffs_df))
-}
-
+# Main function for checking stability of estimation to increasing K
 stability_check <- function(ssr_str, moddist, onemodel_path) {
   file <- list.files(onemodel_path, 
                       pattern = paste0(moddist, "_*", ssr_str), full.names = TRUE)
@@ -530,7 +458,7 @@ stability_check <- function(ssr_str, moddist, onemodel_path) {
   return(result_df)
 }
 
-
+# main function for running a Moran's I test on residuals
 check_autocorr <- function(species, subregion, resid_path, onemodel_path,
                            glmm_only = FALSE) {
   
@@ -694,6 +622,6 @@ check_autocorr <- function(species, subregion, resid_path, onemodel_path,
 }
 
 
-
+# Load in the data (this is useful for places where this file is sourced)
 ca_obs <- read_csv("intermediate/CA_obs_processed.csv")
 ca_checklists <- read_csv("intermediate/CA_checklists_w_covariates.csv")

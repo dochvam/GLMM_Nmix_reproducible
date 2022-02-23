@@ -1,6 +1,6 @@
 # read_results_helper_file.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
+# Date: 2/23/2022
 
 # Sourcing this file reads in summary information for all completed
 # models. It's needed by scripts 4-8. The main idea is to loop over all the
@@ -11,9 +11,9 @@
 library(tidyverse)
 
 logit <- function(x) log(x / (1-x))
-dec <- 4 # decisiveness threshold
+dec <- 2
 
-results_folder <- onemodel_path <- "output/onemodel_results"
+results_folder <- onemodel_path <- "output/onemodel_oneyear"
 num__s <- str_count(results_folder, "_")
 
 ssr_site_info <- read_csv("intermediate/chosen_ssrs.csv") %>% 
@@ -26,41 +26,41 @@ ssr_site_info$abund_type[is.na(ssr_site_info$abund_type)] <- "Global"
 # Get list of files
 all_onemodels <- list.files(results_folder, full.names = TRUE)
 all_onemodels_df <- do.call(rbind,
-    lapply(all_onemodels, function(x) {
-      temp <- readRDS(x)
-      # cat(x, "\n")
-      split_file <- unlist(strsplit(unlist(strsplit(x, "_")), "/"))
-      
-      log_theta <- temp$coefficients$est[temp$coefficients$param == "Log theta"]
-      if (length(log_theta) == 0) log_theta <- NA
-      
-      log_s <- temp$coefficients$est[temp$coefficients$param == "Log s"]
-      if (length(log_s) == 0) log_s <- NA
-      
-      if (split_file[3 + num__s] == "GLMM" && split_file[4 + num__s] == "Nbin") {
-        nb_phi <- summary(temp$fit)$sigma
-      } else {
-        nb_phi <- NA
-      }
-      
-      data.frame(model = split_file[3 + num__s],
-                 distribution = split_file[4 + num__s],
-                 moddist = paste0(split_file[3 + num__s], "_", split_file[4 + num__s]),
-                 num_inf = sum(is.infinite(temp$models_tried$AIC)),
-                 num_nan = sum(is.nan(temp$coefficients$se)),
-                 num_params = sum(temp$best_row[1:(ncol(temp$best_row) - 1)]),
-                 time_wrote = file.info(x)$mtime,
-                 sr = temp$subregion,
-                 species = temp$species,
-                 glmm_nb_phi = nb_phi,
-                 log_theta = log_theta, 
-                 log_s = log_s,
-                 time_taken = as.numeric(temp$time_taken, units = "mins"),
-                 AIC = temp$AIC,
-                 fn = x)
-    }))
+                            lapply(all_onemodels, function(x) {
+                              # cat(x, "\n")
+                              temp <- readRDS(x)
+                              split_file <- unlist(strsplit(unlist(strsplit(x, "_")), "/"))
+                              
+                              log_theta <- temp$coefficients$est[temp$coefficients$param == "ltheta"]
+                              if (length(log_theta) == 0) log_theta <- NA
+                              
+                              log_s <- temp$coefficients$est[temp$coefficients$param == "log_s"]
+                              if (length(log_s) == 0) log_s <- NA
+                              
+                              if (split_file[3 + num__s] == "GLMM" && split_file[4 + num__s] == "Nbin") {
+                                nb_phi <- summary(temp$fit)$sigma
+                              } else {
+                                nb_phi <- NA
+                              }
+                              
+                              data.frame(model = split_file[3 + num__s],
+                                         distribution = split_file[4 + num__s],
+                                         moddist = paste0(split_file[3 + num__s], "_", split_file[4 + num__s]),
+                                         num_inf = sum(is.infinite(temp$models_tried$AIC)),
+                                         num_nan = sum(is.nan(temp$coefficients$se)),
+                                         num_params = sum(temp$best_row[1:(ncol(temp$best_row) - 1)]),
+                                         time_wrote = file.info(x)$mtime,
+                                         sr = temp$subregion,
+                                         species = temp$species,
+                                         glmm_nb_phi = nb_phi,
+                                         log_theta = log_theta, 
+                                         log_s = log_s,
+                                         time_taken = as.numeric(temp$time_taken, units = "mins"),
+                                         AIC = temp$AIC,
+                                         fn = x)
+                            }))
 
- ssrs_completed <- all_onemodels_df %>% 
+ssrs_completed <- all_onemodels_df %>% 
   count(sr, species) %>% 
   filter(n == 6) %>% 
   select(-n) %>% 
@@ -70,7 +70,7 @@ all_onemodels_df <- do.call(rbind,
   left_join(all_onemodels_df %>% 
               distinct(sr, species, glmm_nb_phi) %>% 
               filter(!is.na(glmm_nb_phi)))
- 
+
 all_onemodels_df_completed <- all_onemodels_df %>% 
   filter(paste0(species, sr) %in% paste0(ssrs_completed$species, 
                                          ssrs_completed$sr)) %>% 
@@ -81,7 +81,7 @@ all_onemodels_df_completed <- all_onemodels_df %>%
 
 all_onemodels_df_incomplete <- all_onemodels_df %>% 
   filter(!(paste0(species, sr) %in% paste0(ssrs_completed$species, 
-                                         ssrs_completed$sr)))
+                                           ssrs_completed$sr)))
 
 
 for (i in 1:nrow(ssrs_completed)) {
@@ -122,9 +122,14 @@ for (i in 1:nrow(ssrs_completed)) {
   ssrs_completed$best_GLMM_noNB_AIC[i] <- min(this_nonb$AIC)
   ssrs_completed$noGNB_choice[i] <- this_nonb$moddist[which.min(this_nonb$AIC)]
   
+  ssrs_completed$best_Nmix_name[i] <- this_nmix$moddist[this_nmix$AIC == 
+                                                          min(this_nmix$AIC)]
+  ssrs_completed$best_GLMM_name[i] <- this_glmm$moddist[this_glmm$AIC == 
+                                                          min(this_glmm$AIC)]
+  
   ssrs_completed$strength_cat[i] <- 
     if (abs(ssrs_completed$diff_to_next[i]) < dec) "Indecisive" 
-  else "Decisive"
+  else ""
 }
 
 ssrs_completed$choicecat <- paste0(ssrs_completed$strength_cat, " ",
@@ -133,7 +138,7 @@ ssrs_completed$choicecat <- paste0(ssrs_completed$strength_cat, " ",
 to_exclude <- all_onemodels_df %>% filter(glmm_nb_phi > 1e12)
 ssrs_completed <- ssrs_completed %>% 
   filter(!(paste0(sr, species) %in% 
-           paste0(to_exclude$sr, to_exclude$species)))
+             paste0(to_exclude$sr, to_exclude$species)))
 all_onemodels_df <- all_onemodels_df %>% 
   filter(!(paste0(sr, species) %in% 
              paste0(to_exclude$sr, to_exclude$species)))
@@ -170,4 +175,3 @@ model_line_colors <- c(
 
 tf_colors <- c("#f00000", "#000000")
 tf_shapes <- c(1, 19)
-

@@ -1,6 +1,6 @@
 # 00_process_raw_eBird.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
+# Date: 2/23/2021
 
 # This file uses the package auk to transform the eBird raw dataset into a
 # two-file relational database storing observation counts and checklist

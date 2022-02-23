@@ -1,6 +1,6 @@
 # 07_batch_posttests.R
 # Author: Benjamin R. Goldstein
-# Date: 2/1/2021
+# Date: 2/23/2022
 
 # This script calls goodness-of-fit checks for all ssrs whose models
 # have already been fit
@@ -117,50 +117,4 @@ for (i in 1:nrow(ssrs_completed)) {
 }
 autocorr_df <- do.call(rbind, autocorr_results_list)
 write_csv(autocorr_df, "output/posttests/autocorr_df.csv")
-
-
-
-##### (5). Batch checks against unmarked #####
-# The following code, if uncommented, will run checks against unmarked.
-# This was useful for model validation during development but is very slow.
-
-# AICs_list <- parLapply(cl, targets_as_list, 
-#    function(xx) {
-#      for (i in 1:length(xx)) {
-#        x <- xx[i]
-#        if (!file.exists(paste0("output/posttests/umcomp", x, ".csv"))) {
-#          tryCatch({
-#            
-#            bp_res <- readRDS(paste0("output/onemodel_oneyear/Nmix_BP", x, ".RDS"))
-#            bp_comp <- refit_as_unmarked(bp_res)
-#            
-#            bnb_res <- readRDS(paste0("output/onemodel_oneyear/Nmix_BNB", x, ".RDS"))
-#            bnb_comp <- refit_as_unmarked(bnb_res)
-# 
-#            saveRDS(
-#              list(bp_comp = bp_comp, bnb_comp = bnb_comp),
-#              paste0("output/posttests/umcomp", x, ".RDS")
-#            )
-#            
-#            "Completed."
-#          }, error = function(err) {as.character(err)})
-#        } else {
-#          "Already done."
-#        }
-#      }
-#    }
-# ) 
-# 
-# 
-# umcomp_files <- list.files("output/posttests", pattern = "umcomp",
-#                            full.names = TRUE)
-# umcomp_values <- lapply(umcomp_files, function(x) {
-#   res <- readRDS(x)
-#   data.frame(
-#     AIC_diff = c(res$bp_comp$refit_AIC - res$bp_comp$original_AIC,
-#                  res$bnb_comp$refit_AIC - res$bnb_comp$original_AIC),
-#     dist = c("BP", "BNB")
-#   )
-# }) %>% 
-#   do.call(what = rbind)
 
