@@ -57,13 +57,13 @@ make_dat_df <- function(species, subregion, include_ll = FALSE) {
         yday = scale(lubridate::yday(OBSERVATION.DATE)),
         tod = scale(as.numeric(TIME.OBSERVATIONS.STARTED)),
         duration = scale(DURATION.MINUTES),
-        distance = scale(EFFORT.DISTANCE.KM),
+        # distance = scale(EFFORT.DISTANCE.KM),
         protocol = as.factor(PROTOCOL.CODE),
         num_observers = scale(NUMBER.OBSERVERS),
         year = as.factor(year),
         elevation = scale(elevation),
-        precip = scale(precip),
-        tmax = scale(tmax),
+        # precip = scale(precip),
+        # tmax = scale(tmax),
         pct_veg_comb = scale(pct_veg_comb),
         pct_veg = scale(pct_veg),
         pct_water = scale(pct_water),
@@ -74,7 +74,7 @@ make_dat_df <- function(species, subregion, include_ll = FALSE) {
       mutate(tod_sq = tod^2,
              yday_sq = yday^2) %>% 
       select(total_count, locID, yday, yday_sq, tod, tod_sq, duration, 
-             distance, protocol, num_observers, year, elevation, precip, tmax,
+             protocol, num_observers, year, elevation,
              pct_veg, pct_water, pct_tree, pct_ag, gx, gy)
   } else {
     dat_df <- this_cl %>% 
@@ -83,13 +83,13 @@ make_dat_df <- function(species, subregion, include_ll = FALSE) {
         yday = scale(lubridate::yday(OBSERVATION.DATE)),
         tod = scale(as.numeric(TIME.OBSERVATIONS.STARTED)),
         duration = scale(DURATION.MINUTES),
-        distance = scale(EFFORT.DISTANCE.KM),
+        # distance = scale(EFFORT.DISTANCE.KM),
         protocol = as.factor(PROTOCOL.CODE),
         num_observers = scale(NUMBER.OBSERVERS),
         year = as.factor(year),
         elevation = scale(elevation),
-        precip = scale(precip),
-        tmax = scale(tmax),
+        # precip = scale(precip),
+        # tmax = scale(tmax),
         pct_veg_comb = scale(pct_veg_comb),
         pct_veg = scale(pct_veg),
         pct_water = scale(pct_water),
@@ -100,7 +100,7 @@ make_dat_df <- function(species, subregion, include_ll = FALSE) {
       mutate(tod_sq = tod^2,
              yday_sq = yday^2) %>% 
       select(total_count, locID, yday, yday_sq, tod, tod_sq, duration, 
-             distance, protocol, num_observers, elevation, precip, tmax,
+             protocol, num_observers, elevation,
              pct_veg, pct_water, pct_tree, pct_ag)
   }
   
@@ -165,23 +165,19 @@ glmm_formula_from_row <- function(mrow, accept_det_covs, accept_abd_covs) {
 }
 
 # Make an unmarked formula from a row of a model specification matrix
-unmarked_formula_from_row <- function(mrow, accept_det_names, accept_abd_names) {
-
-  thisnames <- names(mrow)[mrow == 1]
+glmm_formula_from_row <- function(mrow, accept_det_covs, accept_abd_covs) {
   
-  terms <- lapply(str_split(thisnames, pattern = "-"), function(x) x[[1]]) %>% 
-    unlist()
-  type <- lapply(str_split(thisnames, pattern = "-"), function(x) x[[2]]) %>% 
-    unlist()
+  names(mrow)[names(mrow) == "tod*tod"] <- "tod_sq"
+  names(mrow)[names(mrow) == "yday*yday"] <- "yday_sq"
   
+  if (sum(mrow) > 0) {
+    f <- paste0("total_count ~ ", paste(names(mrow)[which(mrow == 1)], collapse = " + "),
+                paste0(" + ", paste0(accept_det_covs, collapse = "+"), " + ",
+                       paste0(accept_abd_covs, collapse = "+"), " + (1|locID)"))
+  } else f <- paste0("total_count ~ ", paste0(accept_det_covs, collapse = "+"), " + ",
+                     paste0(accept_abd_covs, collapse = "+"), " + (1|locID)")
   
-  terms[terms == "tod*tod"] <- "tod_sq"
-  terms[terms == "yday*yday"] <- "yday_sq"
-  
-  det_f <- paste0("~", paste(c(accept_det_names, terms[type == "det"]), collapse = " + "))
-  abd_f <- paste0("~", paste(c(accept_abd_names, terms[type == "abd"]), collapse = " + "))
-  
-  return(as.formula(paste(det_f, abd_f)))
+  as.formula(f)
 }
 
 
@@ -198,9 +194,9 @@ row_to_nodes <- function(this_row, mixture, dat_df,
       type <- sp[2]
       first_orders <- unlist(str_split(sp[1], "\\*"))
       this_row[grepl(first_orders[1], terms) &
-               grepl(type, terms) & !grepl("\\*", terms)] <- 1
+                 grepl(type, terms) & !grepl("\\*", terms)] <- 1
       this_row[grepl(first_orders[2], terms) &
-               grepl(type, terms) & !grepl("\\*", terms)] <- 1
+                 grepl(type, terms) & !grepl("\\*", terms)] <- 1
     }
   }
   
@@ -217,11 +213,11 @@ row_to_nodes <- function(this_row, mixture, dat_df,
       paste0("p_coeffs[", 2:(1 + length(accept_det_names)), "]"), # accept det covariates
       paste0("abund_coeffs[", 2:(1 + length(accept_abd_names)), "]"), # accept abd covariates
       paste0("abund_coeffs[", (2 + length(accept_abd_names)):(length(abd_terms) + length(accept_abd_names) + 1), "]")[
-           which(this_row[names(this_row) %in% abd_terms] == 1)
-         ],
+        which(this_row[names(this_row) %in% abd_terms] == 1)
+      ],
       paste0("p_coeffs[", (2 + length(accept_det_names)):(length(det_terms) + 1 + length(accept_det_names)), "]")[
-           which(this_row[names(this_row) %in% det_terms] == 1)
-         ])
+        which(this_row[names(this_row) %in% det_terms] == 1)
+      ])
   return(this_target_nodes)
 }
 
@@ -237,7 +233,7 @@ noNanSetAndCalculate <- nimbleFunction(
     values(model, targetNodesAsScalar) <<- targetValues
     lp <- calculate(model, calcNodes)
     returnType(double())
-    if (!is.nan(lp)) return(lp)
+    if (!is.nan(lp) & lp != -Inf) return(lp)
     else return(-1e6)
   }
 )
@@ -262,7 +258,7 @@ Cnmix_model_optim <- function(Cnmix_model, nmix_model, this_target_nodes,
   # upper[this_target_nodes == "p_coeffs[1]"] <- logit(0.999)
   upper[this_target_nodes %in% c("ltheta", "log_s")] <- 10
   
-
+  
   while (fitct < 5) {
     fitct <- fitct + 1
     this_fit <- tryCatch(
@@ -291,9 +287,9 @@ Cnmix_model_optim <- function(Cnmix_model, nmix_model, this_target_nodes,
       !any(this_fit$par[this_target_nodes %in% c("ltheta", "log_s")] == -10)) {
     tryCatch(
       this_fit <- optim(this_fit$par,
-            Csc$run, hessian = TRUE, method = "L-BFGS-B",
-            lower = lower, upper = upper,
-            control = list(fnscale = -1, maxit = 100000, trace = 0)),
+                        Csc$run, hessian = TRUE, method = "L-BFGS-B",
+                        lower = lower, upper = upper,
+                        control = list(fnscale = -1, maxit = 100000, trace = 0)),
       error = function(e) {NA}
     )
   }
@@ -404,13 +400,14 @@ Cnmix_model_SEs <- function(Cnmix_model, nmix_model,
 # dat_df: a data frame as returned by make_dat_df
 # covs_tbl: describes which parameters in dat_df are being considered for fwd AIC
 # fam: distribution for GLMM (nbinom2 or poisson)
+# modelset should be rows
 GLMM_fwd_AIC <- function(dat_df, covs_tbl, fam, 
                          species = NA, subregion = NA,
                          verbose = F, parallelize = TRUE) {
   start_time <- Sys.time()
   
   accept_det_names <- clean_vec_names(c("duration", "num_observers"), dat_df)
-  accept_abd_names <- clean_vec_names(c("elevation", "precip", "tmax"), dat_df)
+  accept_abd_names <- c("elevation")
   
   models_tried <- as.data.frame(matrix(
     0, ncol = nrow(covs_tbl), nrow = 1
@@ -432,7 +429,7 @@ GLMM_fwd_AIC <- function(dat_df, covs_tbl, fam,
     if (length(covs_to_test) > 0) {
       if (parallelize) {
         plan(multicore)
-
+        
         parAICs <- future_map_dbl(covs_to_test, function(x) {
           this_row <- best_row
           this_row[x] <- 1
@@ -547,7 +544,7 @@ GLMM_fwd_AIC <- function(dat_df, covs_tbl, fam,
   } else {
     sigma <- NA
   }
-
+  
   end_time <- Sys.time()
   
   notes <- list()
@@ -572,7 +569,7 @@ GLMM_fwd_AIC <- function(dat_df, covs_tbl, fam,
 # Function to produce a NIMBLE model for the appropriate N-mixture, relevant data
 make_nmix_model <- function(dat_df, vars, mixture, K) {
   accept_det_names <- clean_vec_names(c("duration", "num_observers"), dat_df)
-  accept_abd_names <- clean_vec_names(c("elevation", "precip", "tmax"), dat_df)
+  accept_abd_names <- c("elevation")
   
   det_var_final_order <- c(accept_det_names, gsub("-det", "", vars[grepl("-det", vars)]))
   abd_var_final_order <- c(accept_abd_names, gsub("-abd", "", vars[grepl("-abd", vars)]))
@@ -692,8 +689,8 @@ Nmix_fwd_AIC <- function(dat_df, covs_tbl, mixture, K, species = NA,
   models_tried$AIC <- NA
   
   accept_det_names <- clean_vec_names(c("duration", "num_observers"), dat_df)
-  accept_abd_names <- clean_vec_names(c("elevation", "precip", "tmax"), dat_df)
-
+  accept_abd_names <- c("elevation") #clean_vec_names(c("elevation"), dat_df)
+  
   if (nCores > 0) {
     cluster.env <- new.env()
     cluster.env$dat_df <- dat_df
@@ -751,7 +748,7 @@ Nmix_fwd_AIC <- function(dat_df, covs_tbl, mixture, K, species = NA,
   }
   
   if (verbose) cat("Beginning selection loop.")
-
+  
   models_tried[1,] <- c(rep(0, nrow(covs_tbl)),
                         NA)
   null_nodes <- row_to_nodes(models_tried[1,1:nrow(covs_tbl)], 
@@ -794,8 +791,8 @@ Nmix_fwd_AIC <- function(dat_df, covs_tbl, mixture, K, species = NA,
         ct <- ct + 1
         models_tried[ct,] <- c(as.numeric(
           covs_tbl$accepted |
-          (covs_tbl$param == to_test_list[[i]]$param & 
-           covs_tbl$type  == to_test_list[[i]]$type)), 
+            (covs_tbl$param == to_test_list[[i]]$param & 
+               covs_tbl$type  == to_test_list[[i]]$type)), 
           NA)
       }
       
@@ -835,7 +832,7 @@ Nmix_fwd_AIC <- function(dat_df, covs_tbl, mixture, K, species = NA,
             AIC_optim(this_fit)
           }) %>% unlist()
       }
-            
+      
       best_row <- models_tried[which.min(models_tried$AIC),]
       
       if (last_best$AIC == best_row$AIC) {
@@ -845,9 +842,9 @@ Nmix_fwd_AIC <- function(dat_df, covs_tbl, mixture, K, species = NA,
         covs_tbl$accepted[as.logical(best_row[1:nrow(covs_tbl)])] <- TRUE
         if (verbose) {
           cat(paste0("\nAccepted: ", 
-              paste(covs_tbl$param[covs_tbl$accepted], 
-                    collapse = " "),
-              ". Best AIC: ", best_row$AIC))
+                     paste(covs_tbl$param[covs_tbl$accepted], 
+                           collapse = " "),
+                     ". Best AIC: ", best_row$AIC))
         }
       }
     }
@@ -890,7 +887,7 @@ Nmix_fwd_AIC <- function(dat_df, covs_tbl, mixture, K, species = NA,
   abd_terms <- terms[grepl("abd", terms)]
   det_terms <- terms[grepl("det", terms)]
   
-
+  
   params_chosen <-
     c("log(p * lambda)", "log(p / lambda)", # Always intercepts
       if (mixture %in% c("B-NB", "BB-NB")) "ltheta",
@@ -910,10 +907,10 @@ Nmix_fwd_AIC <- function(dat_df, covs_tbl, mixture, K, species = NA,
     if (nCores > 0) {
       ses <- parLapply(in.cl, list(best_nodes), x2 = best_fit$par,
                        function(x, x2) {
-         Cnmix_model_SEs(Cnmix_model, nmix_model, 
-                         x, x2,
-                         all_zero_nodes, zero_assignments)
-      })[[1]]
+                         Cnmix_model_SEs(Cnmix_model, nmix_model, 
+                                         x, x2,
+                                         all_zero_nodes, zero_assignments)
+                       })[[1]]
     } else {
       ses <- Cnmix_model_SEs(Cnmix_model, nmix_model, 
                              best_nodes, 
@@ -942,7 +939,7 @@ Nmix_fwd_AIC <- function(dat_df, covs_tbl, mixture, K, species = NA,
       se = c(ses[1], NA, ses[2:length(ses)])
     )
   }
-
+  
   end_time <- Sys.time()
   
   best_model_rtn_info <- list(
@@ -971,20 +968,19 @@ fit_one_ssr <- function(subregion, species, checklists, obs, nCores,
                                       "Nmix_BBP", "Nmix_BBNB"), 
                         verbose = TRUE, glmm_only = FALSE,
                         path_prefix = "output/onemodel_oneyear/") {
-
+  
   if (!(paste0(subregion, species)) %in% 
       unique(paste0(obs$center, obs$name_clean))) {
     warning("No data for target ssr ", subregion, " ", species, ". Skipping.")
     return(NA)
   }
-
+  
   dat_df <- make_dat_df(species, subregion)
   
   both_covs <- c("pct_water", "pct_tree", "pct_veg", "pct_ag")
-  both_covs <- both_covs[
-    unlist(map_lgl(both_covs, function(x) length(unique(unlist(dat_df[,x]))) > 1))]
-
-  det_only_covs <- c("yday", "yday*yday", "tod", "tod*tod", "distance")
+  both_covs <- both_covs[unlist(map_lgl(both_covs, function(x) length(unique(unlist(dat_df[,x]))) > 1))]
+  
+  det_only_covs <- c("yday", "yday*yday", "tod", "tod*tod")
   
   nmix_covs_tbl <- data.frame(
     param = c(both_covs, both_covs, det_only_covs),

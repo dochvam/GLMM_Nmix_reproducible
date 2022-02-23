@@ -2,7 +2,11 @@
 # Author: Benjamin R. Goldstein
 # Date: 2/23/2022
 
-##### 1. Setup #####
+
+### Script 8: Visualize posttests
+# This script contains code for generating figures 3-5 and supplemental figure
+# 3. It also creates summaries of AIC stability.
+
 library(tidyverse)
 source("06_post_tests.R")
 source("read_results_helper_file.R")
@@ -10,7 +14,7 @@ library(grid)
 library(gridExtra)
 library(glmmTMB)
 
-posttest_path <- "output/posttests/"
+posttest_path <- "output/posttests_oneyear/"
 color_facet_strips <- function(p) {
   g <- ggplotGrob(p)
   strips <- which(grepl('strip', g$layout$name))
@@ -171,14 +175,10 @@ gof_plot_A <- gof_df %>%
          `Selected model`) %>%
   ggplot(aes(pvalue)) +
   geom_histogram(bins = 20, fill = "black") + 
-  # scale_fill_manual(values = tf_colors, name = "Selected") +
-  # scale_shape_manual(values = tf_shapes, name = "Selected") +
   geom_vline(xintercept = 0.05, col = "gray") +
-  # xlab("P-value from KS test for normality of residuals") +
   xlab("") +
   scale_x_continuous(breaks = c(0.05, 0.5, 0.9)) + ylab("") +
-  # ggtitle("A. All models") +
-  theme(#axis.text.x = element_blank(), 
+  theme(
     axis.ticks.x = element_blank(),
     panel.grid = element_line(color = "#ededed"),
     panel.grid.major.y = element_blank(),
@@ -191,19 +191,15 @@ gof_plot_A <- gof_df %>%
   facet_wrap(~fit_model, nrow = 2)
 
 
-# gof_legend <- get_legend(gof_plot_A)
-# gof_plot_A <- gof_plot_A + theme(legend.position = "none")
 gof_plot_A <- color_facet_strips(gof_plot_A)
 ggsave("output/plots/Fig3_resub.pdf", gof_plot_A, device = "pdf",
        width = 8, height = 4)
 
-#### Fig S3. GOF where GLMMs were chosen but failed their GOF ####
 failed <- gof_df %>% 
   filter(pvalue < 0.05, 
          test == "Uniformity",
          fit_model %in% c("GLMM_Nbin", "GLMM_Pois"), 
          chosenAIConly == fit_model) %>% 
-  # select(species, subregion) %>% 
   mutate(ssr = paste0(subregion, species))
 
 gof_plot_B <- gof_df %>% 
@@ -214,12 +210,10 @@ gof_plot_B <- gof_df %>%
   ggplot(aes(pvalue)) +
   geom_histogram(bins = 20, fill = "black") + 
   scale_fill_manual(values = tf_colors, name = "Selected") +
-  # scale_shape_manual(values = tf_shapes, name = "Selected") +
   geom_vline(xintercept = 0.05, col = "gray") +
-  # ggtitle("B. Datasets selected as GLMM Nbin, with p < 0.05 in GLMM Nbin  GoF") +
   xlab("P-value from KS test for normality of residuals") +
   scale_x_continuous(breaks = c(0.1, 0.5, 0.9)) + ylab("") +
-  theme(#axis.text.x = element_blank(), 
+  theme(
     axis.ticks.x = element_blank(),
     panel.grid = element_line(color = "#ededed"),
     panel.grid.major.y = element_blank(),
@@ -233,7 +227,7 @@ gof_plot_B <- gof_df %>%
   facet_wrap(~fit_model, nrow = 2)
 
 gof_plot_B <- color_facet_strips(gof_plot_B)
-ggsave("output/plots/FigS5_GOF.jpg", gof_plot_B, device = "jpg",
+ggsave("output/plots/FigS3.jpg", gof_plot_B, device = "jpg",
        width = 8, height = 4)
 
 
@@ -331,47 +325,10 @@ for (j in 1:2) {
       combdat[[i]] <- combdat[[i]] %>% 
         mutate(est1 = exp(est1), est2 = exp(est2))
     }
-    
-    # Point estimates
-    lmlist_est[[i]] <- lm(est2 ~ est1, data = combdat[[i]])
-    model_combos_est$R2[i] <- summary(lmlist_est[[i]])$r.squared
-    model_combos_est$slope[i] <- summary(lmlist_est[[i]])$coefficients[2,1]
-    model_combos_est$int[i] <- summary(lmlist_est[[i]])$coefficients[1,1]
-    
-    model_combos_est$slope_diff_from1[i] <- 
-      sign(summary(lmlist_est[[i]])$coefficients[2,1] + 
-             1.96 * summary(lmlist_est[[i]])$coefficients[2,2] - 1) ==
-      sign(summary(lmlist_est[[i]])$coefficients[2,1] - 
-             1.96 * summary(lmlist_est[[i]])$coefficients[2,2] - 1)
-    
-    model_combos_est$int_diff_from0[i] <- 
-      sign(summary(lmlist_est[[i]])$coefficients[1,1] + 
-             1.96 * summary(lmlist_est[[i]])$coefficients[1,2]) ==
-      sign(summary(lmlist_est[[i]])$coefficients[1,1] - 
-             1.96 * summary(lmlist_est[[i]])$coefficients[1,2])
-    
-    # Standard errors
-    lmlist_se[[i]] <- lm(se2 ~ se1, data = combdat[[i]])
-    model_combos_se$R2[i] <- summary(lmlist_se[[i]])$r.squared
-    model_combos_se$slope[i] <- summary(lmlist_se[[i]])$coefficients[2,1]
-    model_combos_se$int[i] <- summary(lmlist_se[[i]])$coefficients[1,1]
-    
-    model_combos_se$slope_diff_from1[i] <- 
-      sign(summary(lmlist_se[[i]])$coefficients[2,1] + 
-             1.96 * summary(lmlist_se[[i]])$coefficients[2,2] - 1) ==
-      sign(summary(lmlist_se[[i]])$coefficients[2,1] - 
-             1.96 * summary(lmlist_se[[i]])$coefficients[2,2] - 1)
-    
-    model_combos_se$int_diff_from0[i] <- 
-      sign(summary(lmlist_se[[i]])$coefficients[1,1] + 
-             1.96 * summary(lmlist_se[[i]])$coefficients[1,2]) ==
-      sign(summary(lmlist_se[[i]])$coefficients[1,1] - 
-             1.96 * summary(lmlist_se[[i]])$coefficients[1,2])
-    
   }
   combdat_df <- do.call(rbind, combdat) %>% 
     mutate(cat = paste0(model1, " - ", model2))
-  
+
   combdat_df$est_diff <- (combdat_df$est1) - (combdat_df$est2)
   combdat_df$se_log_ratio <- log(combdat_df$se1) - log(combdat_df$se2)
   
@@ -391,34 +348,6 @@ for (j in 1:2) {
     xlab("point estimate") + 
     ylab("point estimate") +
     ggtitle(paste0(c("(a) ", "(b) ", "(c) ", "(d) ")[j], parname))
-  
-  # ggsave(filename = paste0("output/plots/Figs7",
-  #                          c("A", "B", "C", "D")[j],
-  #                          "_est_", parname, ".jpg"), 
-  #        plot = est_plots[[j]], width = 5, height = 5)
-  # 
-  # se_plots[[j]] <- ggplot(combdat_df, aes(se_log_ratio)) + 
-  #   # geom_point(cex = 0.7) +
-  #   geom_histogram() +
-  #   facet_grid(model1~model2, scales = "free") +
-  #   # geom_smooth(method='lm', formula = y~x)+
-  #   # geom_abline(slope = 1, intercept = 0, col = "lightgray") +
-  #   geom_vline(xintercept = 0) +
-  #   theme_minimal() +
-  #   # scale_x_continuous(breaks = c(-8, -4, 0, 4, 8)) +
-  #   # scale_y_continuous(breaks = c(-8, -4, 0, 4, 8)) +
-  #   theme(panel.grid.minor = element_blank(),
-  #         panel.background = element_rect(fill= "white", color = "white"),
-  #         plot.background = element_rect(fill = "white", color = "white")) +
-  #   # coord_fixed() +
-  #   xlab("standard error") + 
-  #   ylab("standard error") +
-  #   ggtitle(paste0(c("A. ", "B. ", "C. ", "D. ")[j], parname))
-  
-  # cat_order <- combdat_df %>% 
-  #   group_by(cat) %>% 
-  #   summarize(mean = mean(se_log_ratio)) %>% 
-  #   arrange(mean)
   
   if (parname == "elevation") parname <- "Elevation"
   se_plots[[j]] <- combdat_df %>% 
@@ -472,7 +401,7 @@ for (j in 1:2) {
   #                          c("A", "B", "C", "D")[j],
   #                          "_se_", parname, ".jpg"), 
   #        plot = se_plots[[j]], width = 5, height = 5)
-  
+
   model_combos_list[[j]] <- bind_rows(model_combos_est, model_combos_se) %>% 
     mutate(param = parname)
 }

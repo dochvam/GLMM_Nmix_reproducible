@@ -31,6 +31,7 @@ CA_map <- maps::map(database = "state", regions = "CA", fill = T, plot = F)
 CA_poly <- maptools::map2SpatialPolygons(
   CA_map, IDs = "california", proj4string = CRS("+proj=longlat +datum=WGS84")
 ) %>% spTransform(good_CRS)
+
 subregion_radius <- 10000
 subregion_buffer <- 50000
 

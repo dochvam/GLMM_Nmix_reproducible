@@ -154,7 +154,7 @@ rank_laid_out <- grid.arrange(
 )
 
 
-#### Delta AIC plots ###
+# Delta AIC plots
 daic_dat_to_plot <- ssrc_w_abd %>%
   mutate(dummy = -100) %>%
   mutate(glmm_minus_nmix = best_GLMM_AIC - best_Nmix_AIC) %>%
@@ -286,17 +286,6 @@ grid.arrange(textGrob("(a)", 0.1, just = "bottom"),
          device = "pdf", width = 8, height = 8, font = "Helvetica")
 
 
-
-
-
-
-
-
-
-
-
-
-
 #### Fig S3. Species patterns ####
 spec_choice_plot <- wide_om_df %>% 
   filter(chosen) %>% 
@@ -353,7 +342,6 @@ ggsave("output/plots/FigS3_spec_choice.jpg", device = "jpeg", spec_choice_plot,
          width = 6.5, height = 4)
 
 #### Fig S2. AIC comparisons within ssrs ####
-
 plot_AIC_comp_from_str <- function(ssr_str) {
   test_files <- list.files("output/onemodel_oneyear", pattern = ssr_str, 
                            full.names = TRUE)
@@ -466,4 +454,3 @@ sr_map <- ggplot(mapping = aes(long, lat)) +
   theme_minimal() +
   theme(plot.background = element_rect("white", colour = "white"))
 ggsave(sr_map, filename = "output/plots/FigS1_sr_map.jpg", width = 5, height = 6)
-

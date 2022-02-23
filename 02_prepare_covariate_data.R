@@ -2,6 +2,13 @@
 # Author: Benjamin R. Goldstein
 # Date: 2/23/2021
 
+### Script 2: Associate eBird checklists with spatial covariate data
+# (0) Load inputs
+# (1) Get data rasters
+# (2) Create buffers for landcover data extraction
+# (3) Assign data to checklists
+# (4) Observations are aggregated to a 50m spatial grid
+
 library(sp)
 library(raster)
 library(tidyverse)
